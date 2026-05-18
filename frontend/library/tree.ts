@@ -1,4 +1,3 @@
-/// <reference lib="dom" />
 
 function findInTree(node: any, filter: (n: any) => boolean, walkKeys: string[]): any {
   if (!node || typeof node !== 'object') return null;

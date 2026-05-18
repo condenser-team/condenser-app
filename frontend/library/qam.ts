@@ -1,4 +1,3 @@
-/// <reference lib="dom" />
 
 import { findInElementTree, findInFiberTree, getReactFiberRoot } from './tree.js';
 import { getCondenser } from './condenser.js';

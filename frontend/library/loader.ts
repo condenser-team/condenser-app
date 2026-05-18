@@ -1,4 +1,3 @@
-/// <reference lib="dom" />
 
 import { renderComponent } from './qam.js';
 import { MessageType, Route, WsEvent, Auth } from '../../shared/protocol.js';

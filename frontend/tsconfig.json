@@ -8,7 +8,10 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "paths": {
+      "condenser:api": ["./library/api.ts"]
+    }
   },
-  "include": ["index.ts", "condenser-api.d.ts", "library/**/*.ts", "../shared/**/*.ts", "../plugins/**/*.tsx", "../plugins/**/*.ts"]
+  "include": ["index.ts", "library/**/*.ts", "../shared/**/*.ts", "../plugins/**/*.tsx", "../plugins/**/*.ts"]
 }

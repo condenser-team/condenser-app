@@ -1,4 +1,3 @@
-/// <reference lib="dom" />
 /// <reference types="vite/client" />
 
 import { getCondenser } from './condenser.js';

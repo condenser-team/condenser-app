@@ -11,41 +11,15 @@ const projectRoot = path.resolve(__dirname, '..');
 const mode = getModeFromArg(process.argv.slice(2));
 const config = getRuntimeConfig(mode);
 
-// Resolve 'react', 'react/jsx-runtime', and 'condenser:plugin' to virtual
-// modules so plugin code uses Steam's webpack-bundled React without bundling it.
+// Resolve 'react', 'react/jsx-runtime', and 'condenser:api' to shim modules
+// so plugin code uses Steam's webpack-bundled React without bundling it.
 const condenserShims: Plugin = {
   name: 'condenser-shims',
   enforce: 'pre',
   resolveId(id) {
-    if (id === 'react') return '\0virtual:condenser-react';
-    if (id === 'react/jsx-runtime' || id === 'react/jsx-dev-runtime') return '\0virtual:condenser-react-jsx';
-    if (id === 'condenser:api') return '\0virtual:condenser-api';
-    return null;
-  },
-  load(id) {
-    if (id === '\0virtual:condenser-react') {
-      return `const R = window.__condenser.core.React;
-export default R;
-export const { useState, useEffect, useRef, useCallback, useMemo,
-               createContext, useContext, useReducer, Fragment,
-               createElement, forwardRef, memo } = R;`;
-    }
-    if (id === '\0virtual:condenser-react-jsx') {
-      return `const R = window.__condenser.core.React;
-export const jsx = R.createElement;
-export const jsxs = R.createElement;
-export const jsxDEV = R.createElement;
-export const Fragment = R.Fragment;`;
-    }
-    if (id === '\0virtual:condenser-api') {
-      return `const R = window.__condenser.core.React;
-export function useSend(pluginId) {
-  return R.useCallback(
-    (action, data) => window.__condenser.plugins.callPlugin(pluginId, { action, data }),
-    [pluginId],
-  );
-}`;
-    }
+    if (id === 'react') return path.join(__dirname, 'library/react.ts');
+    if (id === 'react/jsx-runtime' || id === 'react/jsx-dev-runtime') return path.join(__dirname, 'library/react-jsx.ts');
+    if (id === 'condenser:api') return path.join(__dirname, 'library/api.ts');
     return null;
   },
   handleHotUpdate({ file, server }) {
@@ -81,9 +55,6 @@ export default defineConfig({
   plugins: [
     condenserShims,
   ],
-  optimizeDeps: {
-    exclude: ['react', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'condenser:api'],
-  },
   build: {
     outDir: 'dist',
     rollupOptions: {
