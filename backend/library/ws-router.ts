@@ -5,6 +5,10 @@ export { MessageType };
 
 type Handler = (params: unknown, ws: WebSocket) => Promise<unknown> | unknown;
 
+function sendReply(ws: WebSocket, id: unknown, payload: { result: unknown } | { error: string }): void {
+  ws.send(JSON.stringify({ type: MessageType.REPLY, id, ...payload }));
+}
+
 export class WsRouter {
   private readonly routes = new Map<string, Handler>();
 
@@ -20,14 +24,14 @@ export class WsRouter {
 
     const handler = this.routes.get(msg.route);
     if (!handler) {
-      ws.send(JSON.stringify({ type: MessageType.REPLY, id: msg.id, error: `Unknown route: ${msg.route}` }));
+      sendReply(ws, msg.id, { error: `Unknown route: ${msg.route}` });
       return;
     }
     try {
       const result = await handler(msg.params, ws);
-      ws.send(JSON.stringify({ type: MessageType.REPLY, id: msg.id, result }));
+      sendReply(ws, msg.id, { result });
     } catch (e: any) {
-      ws.send(JSON.stringify({ type: MessageType.REPLY, id: msg.id, error: e.message }));
+      sendReply(ws, msg.id, { error: e.message });
     }
   }
 }

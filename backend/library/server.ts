@@ -38,28 +38,7 @@ export async function startServer(mode: Mode) {
 
   await loadPlugins(router, clients);
 
-  const handleRequest = (req: IncomingMessage, res: ServerResponse) => {
-    if (req.url === Auth.ENDPOINT) {
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-      res.end(JSON.stringify({ [Auth.TOKEN_KEY]: csrfToken }));
-      return;
-    }
-
-    if (config.isProduction) {
-      const safePath = (req.url ?? '/').replace(/[?#].*$/, '');
-      const filePath = path.join(process.cwd(), 'dist', safePath);
-      const ext = path.extname(filePath);
-      if (ext && existsSync(filePath)) {
-        const contentType = MIME[ext] ?? 'application/octet-stream';
-        res.writeHead(200, { 'Content-Type': contentType, 'Access-Control-Allow-Origin': '*' });
-        createReadStream(filePath).pipe(res);
-        return;
-      }
-    }
-
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Condenser Backend');
-  };
+  const handleRequest = createRequestHandler(csrfToken, config.isProduction);
 
   const server = sslOptions
     ? createHttpsServer(sslOptions, handleRequest)
@@ -104,4 +83,29 @@ function isAllowedRequest(request: IncomingMessage, allowedOrigins: string[]): b
   const origin = request.headers.origin;
   if (!origin) return true;
   return allowedOrigins.includes(origin);
+}
+
+function createRequestHandler(csrfToken: string, isProduction: boolean) {
+  return (req: IncomingMessage, res: ServerResponse) => {
+    if (req.url === Auth.ENDPOINT) {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({ [Auth.TOKEN_KEY]: csrfToken }));
+      return;
+    }
+
+    if (isProduction) {
+      const safePath = (req.url ?? '/').replace(/[?#].*$/, '');
+      const filePath = path.join(process.cwd(), 'dist', safePath);
+      const ext = path.extname(filePath);
+      if (ext && existsSync(filePath)) {
+        const contentType = MIME[ext] ?? 'application/octet-stream';
+        res.writeHead(200, { 'Content-Type': contentType, 'Access-Control-Allow-Origin': '*' });
+        createReadStream(filePath).pipe(res);
+        return;
+      }
+    }
+
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Condenser Backend');
+  };
 }

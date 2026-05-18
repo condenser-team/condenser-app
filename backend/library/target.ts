@@ -69,6 +69,26 @@ async function findSteamSharedContextPage(browser: Browser): Promise<Page | null
   return null;
 }
 
+function watchPluginChanges(
+  page: Page,
+  frontendOrigin: string,
+  logger: ReturnType<typeof createLogger>,
+): void {
+  const componentsByDir = new Map(discoverPlugins().map(c => [c.id, c]));
+  if (!fs.existsSync(pluginsDir)) return;
+  fs.watch(pluginsDir, { recursive: true }, async (_, filename) => {
+    if (!filename || (!filename.endsWith('.tsx') && !filename.endsWith('.ts'))) return;
+    const pluginId = filename.split(path.sep)[0];
+    const component = componentsByDir.get(pluginId);
+    if (!component) return;
+    const pluginUrl = `${frontendOrigin}${component.vitePath}`;
+    logger.info('[reload]', component.id);
+    try {
+      await page.evaluate(makeReloadScript(component.id, pluginUrl));
+    } catch (e) { logger.error('[reload error]', (e as Error).message); }
+  });
+}
+
 async function pageSetup(
   page: Page,
   frontendOrigin: string,
@@ -93,21 +113,7 @@ async function pageSetup(
     .catch((e: Error) => logger.error('Boot error:', e.message));
 
   logger.info('Watching for changes...');
-
-  const componentsByDir = new Map(discoverPlugins().map(c => [c.id, c]));
-  if (fs.existsSync(pluginsDir)) {
-    fs.watch(pluginsDir, { recursive: true }, async (_, filename) => {
-      if (!filename || (!filename.endsWith('.tsx') && !filename.endsWith('.ts'))) return;
-      const pluginId = filename.split(path.sep)[0];
-      const component = componentsByDir.get(pluginId);
-      if (!component) return;
-      const pluginUrl = `${frontendOrigin}${component.vitePath}`;
-      logger.info('[reload]', component.id);
-      try {
-        await page.evaluate(makeReloadScript(component.id, pluginUrl));
-      } catch (e) { logger.error('[reload error]', (e as Error).message); }
-    });
-  }
+  watchPluginChanges(page, frontendOrigin, logger);
 
   page.on('load', async () => {
     const stillInjected = await page.evaluate(
@@ -154,46 +160,48 @@ async function discoverAllBrowsers(
   return browsers;
 }
 
+async function discoverAndSetup(
+  config: ReturnType<typeof getRuntimeConfig>,
+  logger: ReturnType<typeof createLogger>,
+): Promise<void> {
+  const browsers = await discoverAllBrowsers(config.debugTargets, logger);
+
+  if (browsers.length === 0) {
+    logger.warn('No debugger found — launch Steam with -cef-enable-debugging or a browser with remote debugging');
+    setTimeout(() => discoverAndSetup(config, logger), RECONNECT_INTERVAL_MS);
+    return;
+  }
+
+  for (const browser of browsers) {
+    const page = await findSteamSharedContextPage(browser);
+    if (page) {
+      await pageSetup(page, config.frontendOrigin, config.backendWsOrigin, config.isProduction, logger);
+    } else {
+      logger.warn('SharedJSContext not found — is Steam running in game mode?');
+    }
+
+    browser.on('targetcreated', async (target: Target) => {
+      if (target.type() !== 'page') return;
+      try {
+        const newPage = await target.page();
+        if (!newPage) return;
+        const title = await newPage.title().catch(() => '');
+        const url = newPage.url();
+        if (isSteamSharedContextTab(title, url)) {
+          await pageSetup(newPage, config.frontendOrigin, config.backendWsOrigin, config.isProduction, logger);
+        }
+      } catch {}
+    });
+
+    browser.once('disconnected', () => {
+      logger.info('Browser disconnected, reconnecting in', RECONNECT_INTERVAL_MS / 1000, 's...');
+      setTimeout(() => discoverAndSetup(config, logger), RECONNECT_INTERVAL_MS);
+    });
+  }
+}
+
 export async function startDiscovery(mode: Mode) {
   const config = getRuntimeConfig(mode);
   const logger = createLogger('target', config.enableDebugLogs);
-
-  const discoverAndSetup = async () => {
-    const browsers = await discoverAllBrowsers(config.debugTargets, logger);
-
-    if (browsers.length === 0) {
-      logger.warn('No debugger found — launch Steam with -cef-enable-debugging or a browser with remote debugging');
-      setTimeout(discoverAndSetup, RECONNECT_INTERVAL_MS);
-      return;
-    }
-
-    for (const browser of browsers) {
-      const page = await findSteamSharedContextPage(browser);
-      if (page) {
-        await pageSetup(page, config.frontendOrigin, config.backendWsOrigin, config.isProduction, logger);
-      } else {
-        logger.warn('SharedJSContext not found — is Steam running in game mode?');
-      }
-
-      browser.on('targetcreated', async (target: Target) => {
-        if (target.type() !== 'page') return;
-        try {
-          const newPage = await target.page();
-          if (!newPage) return;
-          const title = await newPage.title().catch(() => '');
-          const url = newPage.url();
-          if (isSteamSharedContextTab(title, url)) {
-            await pageSetup(newPage, config.frontendOrigin, config.backendWsOrigin, config.isProduction, logger);
-          }
-        } catch {}
-      });
-
-      browser.once('disconnected', () => {
-        logger.info('Browser disconnected, reconnecting in', RECONNECT_INTERVAL_MS / 1000, 's...');
-        setTimeout(discoverAndSetup, RECONNECT_INTERVAL_MS);
-      });
-    }
-  };
-
-  discoverAndSetup();
+  discoverAndSetup(config, logger);
 }
