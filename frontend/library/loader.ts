@@ -6,7 +6,7 @@ import { getCondenser } from './condenser.js';
 export function callPlugin(route: string, params?: unknown): Promise<any> {
   const condenser = getCondenser();
   return new Promise((resolve, reject) => {
-    const ws: WebSocket = condenser.core.ws;
+    const ws = condenser.core.ws;
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       reject(new Error('[condenser] WebSocket not connected'));
       return;
@@ -23,7 +23,7 @@ export async function loadPlugin(id: string, url: string): Promise<void> {
   const condenser = getCondenser();
   try {
     const mod = await import(/* @vite-ignore */ url);
-    const ns: any = (condenser.components[id] ||= {});
+    const ns = (condenser.components[id] ||= {});
     ns.component = {
       target: mod.target,
       key: mod.key ?? id,
@@ -41,7 +41,7 @@ export async function loadPlugin(id: string, url: string): Promise<void> {
 
 export function initPluginLoader(): void {
   const condenser = getCondenser();
-  const wsUrl: string = condenser.core.url;
+  const wsUrl = condenser.core.url;
   if (!wsUrl) { console.warn('[condenser] initPluginLoader: no WS URL set'); return; }
 
   const httpUrl = wsUrl.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:');
@@ -81,7 +81,7 @@ export function initPluginLoader(): void {
       if (msg.type === MessageType.REPLY) {
         const pending = condenser.core.pendingCalls?.get(msg.id);
         if (pending) {
-          condenser.core.pendingCalls.delete(msg.id);
+          condenser.core.pendingCalls?.delete(msg.id);
           msg.error ? pending.reject(new Error(msg.error)) : pending.resolve(msg.result);
         }
       }

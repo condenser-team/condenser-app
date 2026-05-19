@@ -64,19 +64,18 @@ export function appendTab(
   target: string,
 ): (args: any[], returnValue: any) => any {
   const condenser = getCondenser();
-  const React = condenser.core.React;
+  const React = condenser.core.React!;
   let titleClassName = '';
 
-  function InjectedTabPanel(props: any) {
-    const R = condenser.core.React;
-    const [, setTick] = R.useState(0);
+  function InjectedTabPanel(props: { id: string }) {
+    const [, setTick] = React.useState(0);
     const ns = (condenser.components[props.id] ||= {});
-    R.useLayoutEffect(() => {
+    React.useLayoutEffect(() => {
       ns.forceUpdate = () => setTick((t: number) => t + 1);
       return () => { ns.forceUpdate = undefined; };
     }, []);
     const Panel = ns.component?.panel;
-    return Panel ? R.createElement(Panel, { websocketUrl: condenser.core.url }) : null;
+    return Panel ? React.createElement(Panel, { websocketUrl: condenser.core.url ?? '' }) : null;
   }
 
   return function(_args: any[], returnValue: any): any {
