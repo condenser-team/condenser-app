@@ -3,6 +3,16 @@ import { renderComponent } from './qam.js';
 import { MessageType, Route, WsEvent, Auth } from '../../shared/protocol.js';
 import { getCondenser } from './condenser.js';
 
+const messageListeners = new Map<string, Set<(data: unknown) => void>>();
+
+export function onMessage(pluginId: string, event: string, handler: (data: unknown) => void): () => void {
+  const key = `${pluginId}/${event}`;
+  const set = messageListeners.get(key) ?? new Set();
+  messageListeners.set(key, set);
+  set.add(handler);
+  return () => set.delete(handler);
+}
+
 export function callPlugin(route: string, params?: unknown): Promise<any> {
   const condenser = getCondenser();
   return new Promise((resolve, reject) => {
@@ -87,6 +97,9 @@ export function initPluginLoader(): void {
       }
       if (msg.type === MessageType.EVENT && msg.event === WsEvent.PLUGIN_UPDATED) {
         await loadPlugin(msg.id, msg.url);
+      }
+      if (msg.type === MessageType.EVENT) {
+        messageListeners.get(msg.event)?.forEach(fn => fn(msg));
       }
     };
 

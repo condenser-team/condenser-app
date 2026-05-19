@@ -7,7 +7,7 @@ import { pluginsDir } from './plugins.js';
 import { PluginConvention } from '../../shared/plugin.js';
 
 export interface BackendAPI {
-  emit(event: string, data?: Record<string, unknown>): void;
+  send(event: string, data?: Record<string, unknown>): void;
 }
 
 const RESERVED = new Set(['onLoad', 'onUnload']);
@@ -37,7 +37,7 @@ async function loadPlugin(
   const mod = await import(pathToFileURL(filePath).href) as PluginBackend;
 
   const api: BackendAPI = {
-    emit(event, data = {}) {
+    send(event, data = {}) {
       broadcastEvent(clients, `${id}/${event}`, data);
     },
   };

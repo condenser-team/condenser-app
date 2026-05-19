@@ -35,6 +35,7 @@ export interface CondenserNamespace {
     callPlugin: (route: string, params?: unknown) => Promise<unknown>;
     loadPlugin: (id: string, url: string) => Promise<void>;
     initPluginLoader: () => void;
+    onMessage: (pluginId: string, event: string, handler: (data: unknown) => void) => () => void;
   };
   steam: {
     discoverSteamContext: () => string | null;

@@ -20,7 +20,7 @@ export function Panel() {
   }, []);
 
   const handleClick = async () => {
-    const result = await send('click');
+    const result = await send('click') as { count: number };
     setCount(result.count);
   };
 
