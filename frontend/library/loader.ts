@@ -1,0 +1,113 @@
+
+import { renderComponent } from './qam.js';
+import { MessageType, Route, WsEvent, Auth } from '../../shared/protocol.js';
+import { getCondenser } from './condenser.js';
+
+const messageListeners = new Map<string, Set<(data: unknown) => void>>();
+
+export function onMessage(pluginId: string, event: string, handler: (data: unknown) => void): () => void {
+  const key = `${pluginId}/${event}`;
+  const set = messageListeners.get(key) ?? new Set();
+  messageListeners.set(key, set);
+  set.add(handler);
+  return () => set.delete(handler);
+}
+
+export function callPlugin(route: string, params?: unknown): Promise<any> {
+  const condenser = getCondenser();
+  return new Promise((resolve, reject) => {
+    const ws = condenser.core.ws;
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      reject(new Error('[condenser] WebSocket not connected'));
+      return;
+    }
+    condenser.core.pendingCalls ??= new Map();
+    condenser.core.callSeq ??= 0;
+    const id = ++condenser.core.callSeq;
+    condenser.core.pendingCalls.set(id, { resolve, reject });
+    ws.send(JSON.stringify({ type: MessageType.CALL, route, id, params }));
+  });
+}
+
+export async function loadPlugin(id: string, url: string): Promise<void> {
+  const condenser = getCondenser();
+  try {
+    const mod = await import(/* @vite-ignore */ url);
+    const ns = (condenser.components[id] ||= {});
+    ns.component = {
+      target: mod.target,
+      key: mod.key ?? id,
+      title: mod.title,
+      tab: mod.Tab,
+      panel: mod.Panel,
+    };
+    renderComponent(id);
+    ns.forceUpdate?.();
+    console.info('[condenser] Loaded plugin', id);
+  } catch (e: any) {
+    console.error('[condenser] Failed to load plugin', id, e.message);
+  }
+}
+
+export function initPluginLoader(): void {
+  const condenser = getCondenser();
+  const wsUrl = condenser.core.url;
+  if (!wsUrl) { console.warn('[condenser] initPluginLoader: no WS URL set'); return; }
+
+  const httpUrl = wsUrl.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:');
+
+  const connect = async () => {
+    let token: string;
+    try {
+      const res = await fetch(`${httpUrl}${Auth.ENDPOINT}`);
+      const json = await res.json();
+      token = json[Auth.TOKEN_KEY];
+      condenser.core.csrfToken = token;
+    } catch (e: any) {
+      console.error('[condenser] Failed to fetch auth token:', e.message);
+      setTimeout(connect, 3000);
+      return;
+    }
+
+    const ws = new WebSocket(`${wsUrl}?${Auth.QUERY_PARAM}=${token}`);
+    condenser.core.ws = ws;
+
+    ws.onerror = () => {
+      const certUrl = wsUrl.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:');
+      console.info('[condenser] If certificate issue, open ' + certUrl + ' in browser once');
+    };
+
+    ws.onopen = async () => {
+      const plugins = await callPlugin(Route.GET_PLUGINS);
+      if (Array.isArray(plugins)) {
+        for (const { id, url } of plugins) {
+          await loadPlugin(id, url);
+        }
+      }
+    };
+
+    ws.onmessage = async (event: MessageEvent) => {
+      const msg = JSON.parse(event.data);
+      if (msg.type === MessageType.REPLY) {
+        const pending = condenser.core.pendingCalls?.get(msg.id);
+        if (pending) {
+          condenser.core.pendingCalls?.delete(msg.id);
+          msg.error ? pending.reject(new Error(msg.error)) : pending.resolve(msg.result);
+        }
+      }
+      if (msg.type === MessageType.EVENT && msg.event === WsEvent.PLUGIN_UPDATED) {
+        await loadPlugin(msg.id, msg.url);
+      }
+      if (msg.type === MessageType.EVENT) {
+        messageListeners.get(msg.event)?.forEach(fn => fn(msg));
+      }
+    };
+
+    ws.onclose = () => {
+      condenser.core.ws = null;
+      setTimeout(connect, 3000);
+    };
+  };
+
+  connect();
+}
