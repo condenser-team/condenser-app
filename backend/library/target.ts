@@ -1,19 +1,9 @@
-/// <reference lib="dom" />
-import puppeteer, { Browser, Page, Target } from 'puppeteer';
 import * as fs from 'fs';
 import * as path from 'path';
+import WebSocket from 'ws';
 import { createLogger } from '../../shared/logger.js';
 import { getRuntimeConfig, Mode } from '../../shared/runtime.js';
 import { discoverPlugins, pluginsDir } from './plugins.js';
-
-interface ChromeVersionInfo {
-  Browser: string;
-  'Protocol-Version': string;
-  'User-Agent': string;
-  'V8-Version': string;
-  'WebKit-Version': string;
-  webSocketDebuggerUrl: string;
-}
 
 const RECONNECT_INTERVAL_MS = 5_000;
 
@@ -30,6 +20,60 @@ export function isSteamSharedContextTab(title: string, url: string): boolean {
       url.includes('https://steamloopback.host/index.html')) &&
     STEAM_SHARED_CONTEXT_TITLES.has(title)
   );
+}
+
+interface CdpTargetInfo {
+  id: string;
+  title: string;
+  type: string;
+  url: string;
+  webSocketDebuggerUrl: string;
+}
+
+type CdpEventHandler = (params: unknown) => void;
+
+class CdpSession {
+  private ws: WebSocket;
+  private nextId = 1;
+  private pending = new Map<number, { resolve: (r: unknown) => void; reject: (e: Error) => void }>();
+  private eventHandlers = new Map<string, Set<CdpEventHandler>>();
+
+  constructor(ws: WebSocket) {
+    this.ws = ws;
+    this.ws.on('message', (data: Buffer) => {
+      const msg = JSON.parse(data.toString()) as {
+        id?: number; method?: string; params?: unknown;
+        result?: unknown; error?: { message: string };
+      };
+      if (msg.id !== undefined) {
+        const handler = this.pending.get(msg.id);
+        this.pending.delete(msg.id);
+        if (msg.error) handler?.reject(new Error(msg.error.message));
+        else handler?.resolve(msg.result);
+      } else if (msg.method) {
+        this.eventHandlers.get(msg.method)?.forEach(h => h(msg.params));
+      }
+    });
+  }
+
+  send(method: string, params?: unknown): Promise<unknown> {
+    return new Promise((resolve, reject) => {
+      const id = this.nextId++;
+      this.pending.set(id, { resolve, reject });
+      this.ws.send(JSON.stringify({ id, method, params }));
+    });
+  }
+
+  on(event: string, handler: CdpEventHandler): void {
+    const set = this.eventHandlers.get(event) ?? new Set();
+    this.eventHandlers.set(event, set);
+    set.add(handler);
+  }
+
+  onClose(handler: () => void): void {
+    this.ws.once('close', handler);
+    this.ws.once('error', handler);
+  }
 }
 
 function makeBootScript(frontendOrigin: string, wsUrl: string, isProduction = false): string {
@@ -51,26 +95,8 @@ function makeReloadScript(id: string, pluginUrl: string): string {
   })()`;
 }
 
-async function findSteamSharedContextPage(browser: Browser): Promise<Page | null> {
-  for (const target of browser.targets()) {
-    if (target.type() !== 'page') continue;
-    const url = target.url();
-    if (!url.includes('steamloopback.host')) continue;
-    try {
-      const page = await target.page();
-      if (!page) continue;
-      const title = await page.title();
-      if (isSteamSharedContextTab(title, url)) {
-        console.log(`[target] Found SharedJSContext: "${title}" @ ${url}`);
-        return page;
-      }
-    } catch {}
-  }
-  return null;
-}
-
 function watchPluginChanges(
-  page: Page,
+  session: CdpSession,
   frontendOrigin: string,
   logger: ReturnType<typeof createLogger>,
 ): void {
@@ -84,120 +110,132 @@ function watchPluginChanges(
     const pluginUrl = `${frontendOrigin}${component.vitePath}`;
     logger.info('[reload]', component.id);
     try {
-      await page.evaluate(makeReloadScript(component.id, pluginUrl));
+      await session.send('Runtime.evaluate', {
+        expression: makeReloadScript(component.id, pluginUrl),
+        userGesture: true,
+        awaitPromise: false,
+      });
     } catch (e) { logger.error('[reload error]', (e as Error).message); }
   });
 }
 
-async function pageSetup(
-  page: Page,
+async function setupSession(
+  session: CdpSession,
   frontendOrigin: string,
   websocketUrl: string,
   isProduction: boolean,
   logger: ReturnType<typeof createLogger>,
 ): Promise<void> {
-  const alreadySetup = await page.evaluate(() => {
-    const c: any = ((window as any).__condenser ||= { core: {}, components: {} });
-    if (c.core.setup) return true;
-    c.core.setup = true;
-    return false;
-  }).catch(() => false);
-  if (alreadySetup) return;
+  const setupResult = await session.send('Runtime.evaluate', {
+    expression: `(() => {
+      const c = (window.__condenser ||= { core: {}, components: {} });
+      if (c.core.setup) return true;
+      c.core.setup = true;
+      return false;
+    })()`,
+    returnByValue: true,
+  }).catch(() => null) as any;
+  if (setupResult?.result?.value === true) return;
 
-  page.on('console', msg => logger.info('[browser]', msg.text()));
-  page.setBypassCSP(true);
+  await session.send('Runtime.enable');
+  session.on('Runtime.consoleAPICalled', (event: any) => {
+    const text = (event.args as any[])
+      .map((a: any) => (typeof a.value !== 'undefined' ? String(a.value) : (a.description ?? '')))
+      .join(' ');
+    logger.info('[browser]', text);
+  });
+
+  void session.send('Page.setBypassCSP', { enabled: true });
 
   const bootExt = isProduction ? '.js' : '.ts';
   logger.info('Booting via', `${frontendOrigin}/frontend/index${bootExt}`);
-  await page.evaluate(makeBootScript(frontendOrigin, websocketUrl, isProduction))
-    .catch((e: Error) => logger.error('Boot error:', e.message));
+  await session.send('Runtime.evaluate', {
+    expression: makeBootScript(frontendOrigin, websocketUrl, isProduction),
+    userGesture: true,
+    awaitPromise: false,
+  }).catch((e: Error) => logger.error('Boot error:', e.message));
 
   logger.info('Watching for changes...');
-  watchPluginChanges(page, frontendOrigin, logger);
+  watchPluginChanges(session, frontendOrigin, logger);
 
-  page.on('load', async () => {
-    const stillInjected = await page.evaluate(
-      () => !!(window as any).__condenser?.core?.injected
-    ).catch(() => false);
-    if (stillInjected) return;
+  await session.send('Page.enable');
+  session.on('Page.loadEventFired', async () => {
+    const result = await session.send('Runtime.evaluate', {
+      expression: '!!(window.__condenser?.core?.injected)',
+      returnByValue: true,
+    }).catch(() => null) as any;
+    if (result?.result?.value) return;
 
-    await page.evaluate(() => {
-      if ((window as any).__condenser) (window as any).__condenser.core.setup = false;
+    await session.send('Runtime.evaluate', {
+      expression: 'if (window.__condenser) window.__condenser.core.setup = false;',
+      awaitPromise: false,
     }).catch(() => {});
 
     logger.info('Page navigated — reinjecting...');
-    await page.evaluate(makeBootScript(frontendOrigin, websocketUrl, isProduction))
-      .catch((e: Error) => logger.error('Reinjection error:', e.message));
+    await session.send('Runtime.evaluate', {
+      expression: makeBootScript(frontendOrigin, websocketUrl, isProduction),
+      userGesture: true,
+      awaitPromise: false,
+    }).catch((e: Error) => logger.error('Reinjection error:', e.message));
   });
 }
 
-async function discoverAllBrowsers(
+async function findSteamTarget(
   debugUrls: string[],
   logger: ReturnType<typeof createLogger>,
-): Promise<Browser[]> {
-  const browsers: Browser[] = [];
-  const seenEndpoints = new Set<string>();
+): Promise<CdpTargetInfo | null> {
   for (const debugUrl of debugUrls) {
     try {
       logger.debug(`Scanning ${debugUrl}...`);
-      const response = await fetch(`${debugUrl}/json/version`);
-      const { webSocketDebuggerUrl } = await response.json() as ChromeVersionInfo;
-      if (seenEndpoints.has(webSocketDebuggerUrl)) {
-        logger.debug(`Skipping duplicate endpoint at ${debugUrl}`);
-        continue;
+      const response = await fetch(`${debugUrl}/json`);
+      if (!response.ok) continue;
+      const targets = await response.json() as CdpTargetInfo[];
+      const target = targets.find(t => isSteamSharedContextTab(t.title, t.url));
+      if (target) {
+        logger.info(`Found SharedJSContext: "${target.title}" @ ${target.url}`);
+        return target;
       }
-      seenEndpoints.add(webSocketDebuggerUrl);
-      const browser = await puppeteer.connect({
-        browserWSEndpoint: webSocketDebuggerUrl,
-        defaultViewport: null,
-      });
-      logger.info(`Connected to browser at ${debugUrl}`);
-      browsers.push(browser);
     } catch {
       continue;
     }
   }
-  return browsers;
+  return null;
 }
 
 async function discoverAndSetup(
   config: ReturnType<typeof getRuntimeConfig>,
   logger: ReturnType<typeof createLogger>,
 ): Promise<void> {
-  const browsers = await discoverAllBrowsers(config.debugTargets, logger);
+  const target = await findSteamTarget(config.debugTargets, logger);
 
-  if (browsers.length === 0) {
-    logger.warn('No debugger found — launch Steam with -cef-enable-debugging or a browser with remote debugging');
+  if (!target) {
+    logger.warn('No SharedJSContext found — launch Steam with -cef-enable-debugging');
     setTimeout(() => discoverAndSetup(config, logger), RECONNECT_INTERVAL_MS);
     return;
   }
 
-  for (const browser of browsers) {
-    const page = await findSteamSharedContextPage(browser);
-    if (page) {
-      await pageSetup(page, config.frontendOrigin, config.backendWsOrigin, config.isProduction, logger);
-    } else {
-      logger.warn('SharedJSContext not found — is Steam running in game mode?');
-    }
+  let connected = false;
+  const ws = new WebSocket(target.webSocketDebuggerUrl);
+  await new Promise<void>((resolve, reject) => {
+    ws.once('open', () => { connected = true; resolve(); });
+    ws.once('error', reject);
+  }).catch((e: Error) => logger.warn('WebSocket connect failed:', e.message));
 
-    browser.on('targetcreated', async (target: Target) => {
-      if (target.type() !== 'page') return;
-      try {
-        const newPage = await target.page();
-        if (!newPage) return;
-        const title = await newPage.title().catch(() => '');
-        const url = newPage.url();
-        if (isSteamSharedContextTab(title, url)) {
-          await pageSetup(newPage, config.frontendOrigin, config.backendWsOrigin, config.isProduction, logger);
-        }
-      } catch {}
-    });
-
-    browser.once('disconnected', () => {
-      logger.info('Browser disconnected, reconnecting in', RECONNECT_INTERVAL_MS / 1000, 's...');
-      setTimeout(() => discoverAndSetup(config, logger), RECONNECT_INTERVAL_MS);
-    });
+  if (!connected) {
+    setTimeout(() => discoverAndSetup(config, logger), RECONNECT_INTERVAL_MS);
+    return;
   }
+
+  logger.info('Connected to SharedJSContext');
+  const session = new CdpSession(ws);
+
+  await setupSession(session, config.frontendOrigin, config.backendWsOrigin, config.isProduction, logger)
+    .catch((e: Error) => logger.error('Setup error:', e.message));
+
+  session.onClose(() => {
+    logger.info('SharedJSContext disconnected, reconnecting in', RECONNECT_INTERVAL_MS / 1000, 's...');
+    setTimeout(() => discoverAndSetup(config, logger), RECONNECT_INTERVAL_MS);
+  });
 }
 
 export async function startDiscovery(mode: Mode) {
