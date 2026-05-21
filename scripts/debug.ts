@@ -16,8 +16,8 @@
  *   webpack <pattern>          Search webpack module sources for a string pattern
  */
 
-import * as http from 'http';
-import WebSocket from 'ws';
+import { CdpSession } from '../shared/cdp.js';
+import { isSteamSharedContextTab } from '../shared/runtime.js';
 
 // ─── Configuration ─────────────────────────────────────────────────────────────
 
@@ -35,88 +35,13 @@ interface CdpTarget {
   webSocketDebuggerUrl: string;
 }
 
-interface CdpResult {
-  id: number;
-  result?: { result: { type: string; value?: any; description?: string; subtype?: string } };
-  error?: { message: string };
-}
-
-// ─── CDP Client ────────────────────────────────────────────────────────────────
-
-class CdpClient {
-  private ws!: WebSocket;
-  private nextId = 0;
-  private pending = new Map<number, { resolve: (v: any) => void; reject: (e: Error) => void }>();
-  private eventHandlers = new Map<string, ((params: any) => void)[]>();
-
-  async connect(wsUrl: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.ws = new WebSocket(wsUrl);
-      const timer = setTimeout(() => reject(new Error(`CDP connect timed out: ${wsUrl}`)), CONNECT_TIMEOUT_MS);
-      this.ws.on('open', () => { clearTimeout(timer); resolve(); });
-      this.ws.on('error', (e) => { clearTimeout(timer); reject(e); });
-      this.ws.on('message', (raw) => {
-        const msg: CdpResult & { method?: string; params?: any } = JSON.parse(raw.toString());
-        if (msg.method) {
-          for (const handler of this.eventHandlers.get(msg.method) ?? []) handler(msg.params);
-        } else if (msg.id !== undefined) {
-          const p = this.pending.get(msg.id);
-          if (p) {
-            this.pending.delete(msg.id);
-            msg.error ? p.reject(new Error(msg.error.message)) : p.resolve(msg.result);
-          }
-        }
-      });
-    });
-  }
-
-  send(method: string, params: Record<string, any> = {}): Promise<any> {
-    return new Promise((resolve, reject) => {
-      const id = ++this.nextId;
-      const timer = setTimeout(() => {
-        this.pending.delete(id);
-        reject(new Error(`CDP ${method} timed out`));
-      }, EVAL_TIMEOUT_MS);
-      this.pending.set(id, {
-        resolve: (v) => { clearTimeout(timer); resolve(v); },
-        reject: (e) => { clearTimeout(timer); reject(e); },
-      });
-      this.ws.send(JSON.stringify({ id, method, params }));
-    });
-  }
-
-  on(event: string, handler: (params: any) => void): void {
-    const list = this.eventHandlers.get(event) ?? [];
-    list.push(handler);
-    this.eventHandlers.set(event, list);
-  }
-
-  close(): void {
-    this.ws.close();
-  }
-}
-
 // ─── Steam / CDP helpers ───────────────────────────────────────────────────────
-
-async function fetchJson(url: string): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const req = http.get(url, (res) => {
-      let body = '';
-      res.on('data', (c: string) => (body += c));
-      res.on('end', () => {
-        try { resolve(JSON.parse(body)); } catch (e) { reject(e); }
-      });
-    });
-    req.on('error', reject);
-    req.setTimeout(3000, () => { req.destroy(); reject(new Error('timeout')); });
-  });
-}
 
 async function findDebugEndpoint(): Promise<string> {
   for (const port of DEBUG_PORTS) {
     try {
-      await fetchJson(`http://localhost:${port}/json/version`);
-      return `http://localhost:${port}`;
+      const res = await fetch(`http://localhost:${port}/json/version`, { signal: AbortSignal.timeout(3000) });
+      if (res.ok) return `http://localhost:${port}`;
     } catch {
       // try next port
     }
@@ -128,17 +53,12 @@ async function findDebugEndpoint(): Promise<string> {
 }
 
 async function listTargets(endpoint: string): Promise<CdpTarget[]> {
-  return fetchJson(`${endpoint}/json/list`);
+  const res = await fetch(`${endpoint}/json/list`, { signal: AbortSignal.timeout(3000) });
+  return res.json() as Promise<CdpTarget[]>;
 }
 
 function findSharedContext(targets: CdpTarget[]): CdpTarget {
-  const SHARED_TITLES = new Set(['SharedJSContext', 'Steam Shared Context presented by Valve™', 'Steam', 'SP']);
-  const match = targets.find(
-    (t) =>
-      t.type === 'page' &&
-      SHARED_TITLES.has(t.title) &&
-      (t.url.includes('steamloopback.host/routes/') || t.url.includes('steamloopback.host/index.html')),
-  );
+  const match = targets.find(t => t.type === 'page' && isSteamSharedContextTab(t.title, t.url));
   if (!match) throw new Error('SharedJSContext not found. Is Steam fully loaded?');
   return match;
 }
@@ -149,20 +69,19 @@ function findTargetByTitle(targets: CdpTarget[], title: string): CdpTarget {
   return match;
 }
 
-async function openClient(wsUrl: string): Promise<CdpClient> {
-  const client = new CdpClient();
-  await client.connect(wsUrl);
-  await client.send('Runtime.enable');
-  return client;
+async function openClient(wsUrl: string): Promise<CdpSession> {
+  const session = await CdpSession.connect(wsUrl, CONNECT_TIMEOUT_MS);
+  await session.send('Runtime.enable', {}, EVAL_TIMEOUT_MS);
+  return session;
 }
 
-async function evaluate<T = any>(client: CdpClient, expression: string): Promise<T> {
-  const result = await client.send('Runtime.evaluate', {
+async function evaluate<T = any>(session: CdpSession, expression: string): Promise<T> {
+  const result = await session.send('Runtime.evaluate', {
     expression,
     returnByValue: true,
     awaitPromise: true,
     timeout: EVAL_TIMEOUT_MS,
-  });
+  }, EVAL_TIMEOUT_MS) as any;
   if (result?.result?.subtype === 'error') {
     throw new Error(result.result.description ?? 'Unknown JS error');
   }
@@ -175,10 +94,10 @@ async function cmdStatus(): Promise<void> {
   const endpoint = await findDebugEndpoint();
   const targets = await listTargets(endpoint);
   const ctx = findSharedContext(targets);
-  const client = await openClient(ctx.webSocketDebuggerUrl);
+  const session = await openClient(ctx.webSocketDebuggerUrl);
 
   try {
-    const state = await evaluate<any>(client, `JSON.stringify({
+    const state = await evaluate<any>(session, `JSON.stringify({
       booted:       !!(window.__condenser?.core?.booted),
       reactVersion: window.__condenser?.core?.React?.version ?? null,
       patched:      !!(window.__condenser?.core?.patched),
@@ -198,7 +117,7 @@ async function cmdStatus(): Promise<void> {
     console.log('Plugins loaded:  ', s.plugins.length ? s.plugins.join(', ') : '(none)');
     console.log('QAM renderer:    ', s.hasQAM ? '✓' : '✗');
   } finally {
-    client.close();
+    session.close();
   }
 }
 
@@ -220,15 +139,15 @@ async function cmdEval(expression: string, targetTitle?: string): Promise<void> 
   const endpoint = await findDebugEndpoint();
   const targets = await listTargets(endpoint);
   const target = targetTitle ? findTargetByTitle(targets, targetTitle) : findSharedContext(targets);
-  const client = await openClient(target.webSocketDebuggerUrl);
+  const session = await openClient(target.webSocketDebuggerUrl);
 
   try {
-    const result = await client.send('Runtime.evaluate', {
+    const result = await session.send('Runtime.evaluate', {
       expression,
       returnByValue: true,
       awaitPromise: true,
       timeout: EVAL_TIMEOUT_MS,
-    });
+    }, EVAL_TIMEOUT_MS) as any;
     const r = result?.result;
     if (r?.subtype === 'error') {
       console.error('JS Error:', r.description);
@@ -240,7 +159,7 @@ async function cmdEval(expression: string, targetTitle?: string): Promise<void> 
       console.log(`(${r?.type ?? 'undefined'})`);
     }
   } finally {
-    client.close();
+    session.close();
   }
 }
 
@@ -248,25 +167,23 @@ async function cmdErrors(targetTitle?: string): Promise<void> {
   const endpoint = await findDebugEndpoint();
   const targets = await listTargets(endpoint);
   const target = targetTitle ? findTargetByTitle(targets, targetTitle) : findSharedContext(targets);
-  const client = await openClient(target.webSocketDebuggerUrl);
+  const session = await openClient(target.webSocketDebuggerUrl);
 
   const errors: string[] = [];
 
   try {
-    await client.send('Log.enable');
-    client.on('Log.entryAdded', (params: any) => {
+    await session.send('Log.enable', {}, EVAL_TIMEOUT_MS);
+    session.on('Log.entryAdded', (params: any) => {
       if (params.entry.level === 'error') errors.push(params.entry.text);
     });
 
-    // Flush existing exceptions via Runtime.exceptionThrown
-    await client.send('Runtime.setAsyncCallStackDepth', { maxDepth: 8 });
+    await session.send('Runtime.setAsyncCallStackDepth', { maxDepth: 8 }, EVAL_TIMEOUT_MS);
 
-    const consoleErrors = await evaluate<string>(client, `JSON.stringify(
+    const consoleErrors = await evaluate<string>(session, `JSON.stringify(
       window.__condenser_debugErrors ?? []
     )`);
 
-    // Install a live error collector for new errors
-    await evaluate<string>(client, `
+    await evaluate<string>(session, `
       window.__condenser_debugErrors ??= [];
       const orig = console.error.bind(console);
       console.error = (...args) => {
@@ -291,7 +208,7 @@ async function cmdErrors(targetTitle?: string): Promise<void> {
       errors.forEach((e, i) => console.log(`  [${i + 1}] ${e}`));
     }
   } finally {
-    client.close();
+    session.close();
   }
 }
 
@@ -299,10 +216,10 @@ async function cmdCondenser(): Promise<void> {
   const endpoint = await findDebugEndpoint();
   const targets = await listTargets(endpoint);
   const target = findSharedContext(targets);
-  const client = await openClient(target.webSocketDebuggerUrl);
+  const session = await openClient(target.webSocketDebuggerUrl);
 
   try {
-    const raw = await evaluate<string>(client, `JSON.stringify({
+    const raw = await evaluate<string>(session, `JSON.stringify({
       booted:            !!(window.__condenser?.core?.booted),
       setup:             !!(window.__condenser?.core?.setup),
       patched:           !!(window.__condenser?.core?.patched),
@@ -325,7 +242,7 @@ async function cmdCondenser(): Promise<void> {
     })`);
     console.log(JSON.stringify(JSON.parse(raw), null, 2));
   } finally {
-    client.close();
+    session.close();
   }
 }
 
@@ -333,14 +250,13 @@ async function cmdReact(): Promise<void> {
   const endpoint = await findDebugEndpoint();
   const targets = await listTargets(endpoint);
   const target = findSharedContext(targets);
-  const client = await openClient(target.webSocketDebuggerUrl);
+  const session = await openClient(target.webSocketDebuggerUrl);
 
   try {
-    const raw = await evaluate<string>(client, `JSON.stringify((() => {
+    const raw = await evaluate<string>(session, `JSON.stringify((() => {
       const React = window.__condenser?.core?.React;
       if (!React) return { error: 'React not found in condenser.core' };
 
-      // Walk fiber tree from root to count nodes by type
       const rootEl = document.getElementById('root');
       if (!rootEl) return { reactVersion: React.version, error: 'no #root element' };
 
@@ -374,7 +290,7 @@ async function cmdReact(): Promise<void> {
     })())`);
     console.log(JSON.stringify(JSON.parse(raw), null, 2));
   } finally {
-    client.close();
+    session.close();
   }
 }
 
@@ -382,10 +298,10 @@ async function cmdRender(pluginId: string): Promise<void> {
   const endpoint = await findDebugEndpoint();
   const targets = await listTargets(endpoint);
   const target = findSharedContext(targets);
-  const client = await openClient(target.webSocketDebuggerUrl);
+  const session = await openClient(target.webSocketDebuggerUrl);
 
   try {
-    const raw = await evaluate<string>(client, `new Promise((resolve) => {
+    const raw = await evaluate<string>(session, `new Promise((resolve) => {
         const c = window.__condenser;
         const React = c?.core?.React;
         const ReactDOM = c?.core?.ReactDOM;
@@ -436,7 +352,6 @@ async function cmdRender(pluginId: string): Promise<void> {
         }, 600);
       })`);
 
-
     const result = JSON.parse(raw as unknown as string);
     if (result.success) {
       console.log(`✓ Plugin "${pluginId}" rendered without errors`);
@@ -449,7 +364,7 @@ async function cmdRender(pluginId: string): Promise<void> {
       process.exit(1);
     }
   } finally {
-    client.close();
+    session.close();
   }
 }
 
@@ -457,10 +372,10 @@ async function cmdStyles(selector: string, targetTitle?: string): Promise<void> 
   const endpoint = await findDebugEndpoint();
   const targets = await listTargets(endpoint);
   const target = targetTitle ? findTargetByTitle(targets, targetTitle) : findSharedContext(targets);
-  const client = await openClient(target.webSocketDebuggerUrl);
+  const session = await openClient(target.webSocketDebuggerUrl);
 
   try {
-    const raw = await evaluate<string>(client, `JSON.stringify((() => {
+    const raw = await evaluate<string>(session, `JSON.stringify((() => {
       const el = document.querySelector(${JSON.stringify(selector)});
       if (!el) return { error: 'No element matches: ' + ${JSON.stringify(selector)} };
 
@@ -487,7 +402,7 @@ async function cmdStyles(selector: string, targetTitle?: string): Promise<void> 
     })())`);
     console.log(JSON.stringify(JSON.parse(raw), null, 2));
   } finally {
-    client.close();
+    session.close();
   }
 }
 
@@ -495,10 +410,10 @@ async function cmdWebpack(pattern: string): Promise<void> {
   const endpoint = await findDebugEndpoint();
   const targets = await listTargets(endpoint);
   const target = findSharedContext(targets);
-  const client = await openClient(target.webSocketDebuggerUrl);
+  const session = await openClient(target.webSocketDebuggerUrl);
 
   try {
-    const raw = await evaluate<string>(client, `JSON.stringify((() => {
+    const raw = await evaluate<string>(session, `JSON.stringify((() => {
       const chunkArray = window.webpackChunksteamui;
       if (!chunkArray) return { error: 'webpackChunksteamui not found' };
       let wr;
@@ -532,7 +447,7 @@ async function cmdWebpack(pattern: string): Promise<void> {
       console.log('');
     }
   } finally {
-    client.close();
+    session.close();
   }
 }
 
@@ -553,15 +468,15 @@ async function main(): Promise<void> {
   const { command, args, target } = parseArgs(process.argv);
 
   const COMMANDS: Record<string, () => Promise<void>> = {
-    status:  () => cmdStatus(),
-    targets: () => cmdTargets(),
-    eval:    () => cmdEval(args.join(' ') || '42', target),
-    errors:  () => cmdErrors(target),
+    status:    () => cmdStatus(),
+    targets:   () => cmdTargets(),
+    eval:      () => cmdEval(args.join(' ') || '42', target),
+    errors:    () => cmdErrors(target),
     condenser: () => cmdCondenser(),
-    react:   () => cmdReact(),
-    render:  () => cmdRender(args[0] ?? 'condenser-tab'),
-    styles:  () => cmdStyles(args[0] ?? 'body', target),
-    webpack: () => cmdWebpack(args[0] ?? ''),
+    react:     () => cmdReact(),
+    render:    () => cmdRender(args[0] ?? 'condenser-tab'),
+    styles:    () => cmdStyles(args[0] ?? 'body', target),
+    webpack:   () => cmdWebpack(args[0] ?? ''),
   };
 
   const fn = COMMANDS[command];

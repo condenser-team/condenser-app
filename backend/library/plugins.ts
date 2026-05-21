@@ -1,7 +1,6 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { existsSync, readdirSync } from 'fs';
-import { PluginConvention } from '../../shared/plugin.js';
+import { PluginConvention, listPluginIds } from '../../shared/plugin.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -14,13 +13,9 @@ export interface PluginEntry {
 export const pluginsDir: string = path.join(__dirname, '..', '..', 'plugins');
 
 export function discoverPlugins(): PluginEntry[] {
-  if (!existsSync(pluginsDir)) return [];
-  return readdirSync(pluginsDir, { withFileTypes: true })
-    .filter(d => d.isDirectory())
-    .map(d => ({
-      id: d.name,
-      path: path.join(pluginsDir, d.name, PluginConvention.FRONTEND_FILE),
-      vitePath: `${PluginConvention.URL_PREFIX}${d.name}/${PluginConvention.FRONTEND_FILE}`,
-    }))
-    .filter(c => existsSync(c.path));
+  return listPluginIds(pluginsDir).map(id => ({
+    id,
+    path: path.join(pluginsDir, id, PluginConvention.FRONTEND_FILE),
+    vitePath: `${PluginConvention.URL_PREFIX}${id}/${PluginConvention.FRONTEND_FILE}`,
+  }));
 }

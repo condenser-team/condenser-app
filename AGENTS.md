@@ -98,7 +98,7 @@ window.webpackChunksteamui         // Steam's webpack chunk array (must exist)
 ```
 
 **Common causes:**
-- `booted: false` — boot.ts never ran. Check that the backend is running and the CDP injection succeeded in `backend/target.ts`.
+- `booted: false` — boot.ts never ran. Check that the backend is running and the CDP injection succeeded in `backend/library/target.ts`.
 - `React not found` — `discoverSteamContext` failed. Use `npm run debug webpack "useLayoutEffect"` to check if React is in the webpack registry.
 - `csrfToken: (not set)` — The `/auth/token` fetch failed. Check the backend is running on port 3001.
 - `WebSocket error` — TLS certificate not trusted. Open the backend HTTP URL in a browser tab to accept the certificate.
@@ -127,7 +127,7 @@ npm run debug eval "(() => { let wr; window.webpackChunksteamui.push([[Symbol()]
 ```
 
 **Common causes:**
-- `Cannot read properties of null (reading 'useState')` — A hook is calling into a React instance with a null dispatcher, meaning it is NOT using Steam's React. Check that `react` and `react/jsx-runtime` are in `optimizeDeps.exclude` in [frontend/vite.config.ts](frontend/vite.config.ts) so Vite's pre-bundler doesn't shadow the virtual module shim.
+- `Cannot read properties of null (reading 'useState')` — A hook is calling into a React instance with a null dispatcher, meaning it is NOT using Steam's React. Check that the `condenserShims` plugin in [frontend/vite.config.ts](frontend/vite.config.ts) is correctly redirecting `react` and `react/jsx-runtime` imports to the shim modules in `frontend/library/`.
 - `Minified React error #321` — React component called outside React's render cycle (e.g. called directly as a function in a script instead of via `createElement`). Never call component functions directly.
 - `hasForceUpdate: false` after plugin loads — `InjectedTabPanel` never mounted, meaning the QAM tab panel was not rendered. Open the Quick Access Menu to trigger a first render.
 - Hook order violation — Hooks must be called the same number of times every render. Avoid conditional hook calls.
@@ -182,7 +182,7 @@ This is the primary JavaScript runtime for the entire Steam UI. It hosts:
 - The React instance used by every visible panel
 - The Condenser injection point — all component mounting, hot reload, and window messaging runs here
 
-**Start here for:** JavaScript errors, injection failures, Redux state, WebSocket communication issues, and anything in [backend/target.ts](backend/target.ts).
+**Start here for:** JavaScript errors, injection failures, Redux state, WebSocket communication issues, and anything in [backend/library/target.ts](backend/library/target.ts).
 
 ### QuickAccess
 
@@ -271,4 +271,4 @@ To connect to a remote Steam instance, attempt the following in order until one 
 
 Use the returned `webSocketDebuggerUrl` values to connect via CDP, exactly as with a local instance. CEF Remote Debugging must be enabled on the target device under **Settings → System → Developer**.
 
-The `--target` flag in the debug CLI uses the local `localhost:8080` endpoint by default. For Steam Deck, update `DEBUG_PORTS` in [scripts/debug.ts](scripts/debug.ts) or use the raw `tsx scripts/debug.ts eval` with a manually specified connection.
+The `--target` flag in the debug CLI uses the local `localhost:8080` endpoint by default. For Steam Deck, the debug CLI only connects to `localhost`. To debug a remote Deck, use `curl http://steamdeck:8080/json/list` to list targets, then connect directly with a tool like `wscat` or Chrome DevTools.

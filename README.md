@@ -2,14 +2,14 @@
 
 > Turns Steam 💨 into liquid 💧!
 
-A development tool that injects React components into Steam web pages using Puppeteer and WebSocket communication.
+A development tool that injects React components into Steam's UI using Chrome DevTools Protocol (CDP) and WebSocket communication.
 
 ![Condenser](/condenser-screenshot.jpg)
 Condenser injected into Browser, App and Steam Deck.
 
 ## Features
 
-- **Browser Automation**: Uses Puppeteer to control Chrome/Steam browser instances
+- **Browser Automation**: Uses CDP (Chrome DevTools Protocol) to connect to Steam's embedded browser and inject code
 - **Code Injection**: Injects React components with hot reload into Steam store pages
 - **WebSocket Communication**: Real-time communication between injected frontend and backend
 - **CSP Bypass**: Automatically modifies Content Security Policy headers for injection
@@ -125,8 +125,12 @@ Launch Steam on the remote device with developer tools enabled.
 
 ## Directory structure
 
-    /backend    -> Puppeteer automation and WebSocket server
-    /frontend   -> Vite dev server and React components injected into Steam pages.
+    /backend    -> CDP-based target discovery and WebSocket server
+    /frontend   -> Vite dev server and React shims injected into Steam's UI
+    /shared     -> Types and utilities shared between backend, frontend, and scripts
+    /plugins    -> Plugin frontends and backends (one subdirectory per plugin)
+    /scripts    -> Dev utilities (launch Steam, generate certs, debug CLI, DevTools)
+    /certs      -> Generated TLS certificates (created by npm run setup)
 
 ## Contact
 
