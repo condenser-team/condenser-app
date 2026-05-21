@@ -1,26 +1,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import WebSocket from 'ws';
 import { createLogger } from '../../shared/logger.js';
-import { getRuntimeConfig, Mode } from '../../shared/runtime.js';
+import { getRuntimeConfig, isSteamSharedContextTab, Mode } from '../../shared/runtime.js';
+import { CdpSession } from '../../shared/cdp.js';
 import { discoverPlugins, pluginsDir } from './plugins.js';
 
 const RECONNECT_INTERVAL_MS = 5_000;
-
-const STEAM_SHARED_CONTEXT_TITLES = new Set([
-  'SharedJSContext',
-  'Steam Shared Context presented by Valve™',
-  'Steam',
-  'SP',
-]);
-
-export function isSteamSharedContextTab(title: string, url: string): boolean {
-  return (
-    (url.includes('https://steamloopback.host/routes/') ||
-      url.includes('https://steamloopback.host/index.html')) &&
-    STEAM_SHARED_CONTEXT_TITLES.has(title)
-  );
-}
 
 interface CdpTargetInfo {
   id: string;
@@ -28,52 +13,6 @@ interface CdpTargetInfo {
   type: string;
   url: string;
   webSocketDebuggerUrl: string;
-}
-
-type CdpEventHandler = (params: unknown) => void;
-
-class CdpSession {
-  private ws: WebSocket;
-  private nextId = 1;
-  private pending = new Map<number, { resolve: (r: unknown) => void; reject: (e: Error) => void }>();
-  private eventHandlers = new Map<string, Set<CdpEventHandler>>();
-
-  constructor(ws: WebSocket) {
-    this.ws = ws;
-    this.ws.on('message', (data: Buffer) => {
-      const msg = JSON.parse(data.toString()) as {
-        id?: number; method?: string; params?: unknown;
-        result?: unknown; error?: { message: string };
-      };
-      if (msg.id !== undefined) {
-        const handler = this.pending.get(msg.id);
-        this.pending.delete(msg.id);
-        if (msg.error) handler?.reject(new Error(msg.error.message));
-        else handler?.resolve(msg.result);
-      } else if (msg.method) {
-        this.eventHandlers.get(msg.method)?.forEach(h => h(msg.params));
-      }
-    });
-  }
-
-  send(method: string, params?: unknown): Promise<unknown> {
-    return new Promise((resolve, reject) => {
-      const id = this.nextId++;
-      this.pending.set(id, { resolve, reject });
-      this.ws.send(JSON.stringify({ id, method, params }));
-    });
-  }
-
-  on(event: string, handler: CdpEventHandler): void {
-    const set = this.eventHandlers.get(event) ?? new Set();
-    this.eventHandlers.set(event, set);
-    set.add(handler);
-  }
-
-  onClose(handler: () => void): void {
-    this.ws.once('close', handler);
-    this.ws.once('error', handler);
-  }
 }
 
 function makeBootScript(frontendOrigin: string, wsUrl: string, isProduction = false): string {
@@ -214,20 +153,16 @@ async function discoverAndSetup(
     return;
   }
 
-  let connected = false;
-  const ws = new WebSocket(target.webSocketDebuggerUrl);
-  await new Promise<void>((resolve, reject) => {
-    ws.once('open', () => { connected = true; resolve(); });
-    ws.once('error', reject);
-  }).catch((e: Error) => logger.warn('WebSocket connect failed:', e.message));
-
-  if (!connected) {
+  let session: CdpSession;
+  try {
+    session = await CdpSession.connect(target.webSocketDebuggerUrl);
+  } catch (e: unknown) {
+    logger.warn('WebSocket connect failed:', (e as Error).message);
     setTimeout(() => discoverAndSetup(config, logger), RECONNECT_INTERVAL_MS);
     return;
   }
 
   logger.info('Connected to SharedJSContext');
-  const session = new CdpSession(ws);
 
   await setupSession(session, config.frontendOrigin, config.backendWsOrigin, config.isProduction, logger)
     .catch((e: Error) => logger.error('Setup error:', e.message));

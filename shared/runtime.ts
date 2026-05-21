@@ -170,3 +170,18 @@ function getCertNames(mode: Mode, publicHost: string): string[] {
 function unique(values: Array<string | null | undefined>): string[] {
   return [...new Set(values.filter((value): value is string => Boolean(value)))];
 }
+
+export const STEAM_SHARED_CONTEXT_TITLES = new Set([
+  'SharedJSContext',
+  'Steam Shared Context presented by Valve™',
+  'Steam',
+  'SP',
+]);
+
+export function isSteamSharedContextTab(title: string, url: string): boolean {
+  return (
+    (url.includes('https://steamloopback.host/routes/') ||
+      url.includes('https://steamloopback.host/index.html')) &&
+    STEAM_SHARED_CONTEXT_TITLES.has(title)
+  );
+}

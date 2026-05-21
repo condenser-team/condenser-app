@@ -1,9 +1,8 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { existsSync, readdirSync } from 'fs';
 import { defineConfig, Plugin } from 'vite';
 import { getRuntimeConfig, getTlsOptions, getModeFromArg } from '../shared/runtime';
-import { PluginConvention } from '../shared/plugin';
+import { PluginConvention, listPluginIds } from '../shared/plugin';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -35,18 +34,12 @@ const condenserShims: Plugin = {
 
 // Build entry points: boot.ts + one per plugin frontend.tsx
 function getPluginEntries(): Record<string, string> {
+  const pluginsDir = path.join(projectRoot, 'plugins');
   const entries: Record<string, string> = {
     'frontend/index': path.join(__dirname, 'index.ts'),
   };
-  const pluginsDir = path.join(projectRoot, 'plugins');
-  if (existsSync(pluginsDir)) {
-    for (const d of readdirSync(pluginsDir, { withFileTypes: true })) {
-      if (!d.isDirectory()) continue;
-      const fp = path.join(pluginsDir, d.name, PluginConvention.FRONTEND_FILE);
-      if (existsSync(fp)) {
-        entries[`plugins/${d.name}/frontend`] = fp;
-      }
-    }
+  for (const id of listPluginIds(pluginsDir)) {
+    entries[`plugins/${id}/frontend`] = path.join(pluginsDir, id, PluginConvention.FRONTEND_FILE);
   }
   return entries;
 }
@@ -79,7 +72,7 @@ export default defineConfig({
     },
     allowedHosts: config.allowedHosts,
     hmr: {
-      protocol: getRuntimeConfig(mode).certPath ? 'wss' : 'ws',
+      protocol: config.certPath ? 'wss' : 'ws',
       host: config.publicHost,
       port: config.frontendPort,
       overlay: false,

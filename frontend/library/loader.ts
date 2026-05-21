@@ -94,11 +94,9 @@ export function initPluginLoader(): void {
           condenser.core.pendingCalls?.delete(msg.id);
           msg.error ? pending.reject(new Error(msg.error)) : pending.resolve(msg.result);
         }
-      }
-      if (msg.type === MessageType.EVENT && msg.event === WsEvent.PLUGIN_UPDATED) {
+      } else if (msg.type === MessageType.EVENT && msg.event === WsEvent.PLUGIN_UPDATED) {
         await loadPlugin(msg.id, msg.url);
-      }
-      if (msg.type === MessageType.EVENT) {
+      } else if (msg.type === MessageType.EVENT) {
         messageListeners.get(msg.event)?.forEach(fn => fn(msg));
       }
     };
