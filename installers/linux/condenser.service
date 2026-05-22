@@ -1,0 +1,14 @@
+[Unit]
+Description=Condenser – Steam UI injection service
+After=network.target graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/opt/condenser/condenser
+WorkingDirectory=/opt/condenser
+Restart=on-failure
+RestartSec=5
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=default.target

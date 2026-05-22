@@ -1,8 +1,13 @@
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { PluginConvention, listPluginIds } from '../../shared/plugin.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const IS_PROD = process.env.NODE_ENV === 'production';
+
+// Dev:  <cwd>/plugins/<id>/frontend.tsx  (source tree)
+// Prod: <cwd>/dist/plugins/<id>/frontend.js  (Vite build output, served statically)
+export const pluginsDir: string = IS_PROD
+  ? path.join(process.cwd(), 'dist', 'plugins')
+  : path.join(process.cwd(), 'plugins');
 
 export interface PluginEntry {
   id: string;
@@ -10,12 +15,11 @@ export interface PluginEntry {
   vitePath: string;
 }
 
-export const pluginsDir: string = path.join(__dirname, '..', '..', 'plugins');
-
 export function discoverPlugins(): PluginEntry[] {
+  const entryFile = IS_PROD ? PluginConvention.FRONTEND_BUILT : PluginConvention.FRONTEND_FILE;
   return listPluginIds(pluginsDir).map(id => ({
     id,
-    path: path.join(pluginsDir, id, PluginConvention.FRONTEND_FILE),
+    path: path.join(pluginsDir, id, entryFile),
     vitePath: `${PluginConvention.URL_PREFIX}${id}/${PluginConvention.FRONTEND_FILE}`,
   }));
 }

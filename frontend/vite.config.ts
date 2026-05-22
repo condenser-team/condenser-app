@@ -49,9 +49,10 @@ export default defineConfig({
     condenserShims,
   ],
   build: {
-    outDir: 'dist',
+    outDir: path.join(__dirname, '..', 'dist'),
     rollupOptions: {
       input: getPluginEntries(),
+      preserveEntrySignatures: 'exports-only',
       output: {
         entryFileNames: '[name].js',
         chunkFileNames: '_chunks/[name]-[hash].js',

@@ -51,7 +51,9 @@ export function getRuntimeConfig(mode: Mode): RuntimeConfig {
   const tlsEnabled = existsSync(certPath) && existsSync(keyPath);
   const httpProtocol = tlsEnabled ? 'https' : 'http';
   const wsProtocol = tlsEnabled ? 'wss' : 'ws';
-  const frontendOrigin = `${httpProtocol}://${publicHost}:${FRONTEND_PORT}`;
+  // In production the backend serves the pre-built frontend, so both share the same origin.
+  const frontendPort = isProduction ? BACKEND_PORT : FRONTEND_PORT;
+  const frontendOrigin = `${httpProtocol}://${publicHost}:${frontendPort}`;
   const backendHttpOrigin = `${httpProtocol}://${publicHost}:${BACKEND_PORT}`;
   const backendWsOrigin = `${wsProtocol}://${publicHost}:${BACKEND_PORT}`;
   const frontendWsOrigin = `${wsProtocol}://${publicHost}:${FRONTEND_PORT}`;

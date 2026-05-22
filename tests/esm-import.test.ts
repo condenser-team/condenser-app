@@ -67,7 +67,7 @@ test.afterAll(async () => {
   await new Promise<void>((resolve) => testServer?.close(() => resolve()));
 });
 
-// ─── Group 8: Native ESM import ──────────────────────────────────────────────
+// ─Group 8: Native ESM import─
 
 test.describe('Native ESM import', () => {
 

@@ -1,0 +1,114 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # Build frontend + cross-platform binaries
+  build:
+    name: Build frontend + binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build and package binaries
+        run: npm run build:binaries
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: |
+            dist/frontend/
+            dist/plugins/
+            dist/_chunks/
+            dist/bin/
+
+  # Platform installers (matrix)
+  package:
+    name: Package ${{ matrix.name }}
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - name: macOS arm64
+            os: macos-latest
+            build_cmd: bash installers/macos/build.sh arm64
+            artifact: installer-macos-arm64
+
+          - name: macOS x64
+            os: macos-13
+            build_cmd: bash installers/macos/build.sh x64
+            artifact: installer-macos-x64
+
+          - name: Linux
+            os: ubuntu-latest
+            build_cmd: bash installers/linux/build.sh
+            artifact: installer-linux
+            install_nfpm: true
+
+          - name: Windows x64
+            os: windows-latest
+            build_cmd: bash installers/windows/build.sh
+            artifact: installer-windows
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-output
+          path: dist/
+
+      - name: Install nfpm
+        if: matrix.install_nfpm
+        run: |
+          echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' \
+            | sudo tee /etc/apt/sources.list.d/goreleaser.list
+          sudo apt-get update -q
+          sudo apt-get install -y nfpm
+
+      - name: Build installer
+        shell: bash
+        run: |
+          VERSION="${{ github.ref_name }}"
+          ${{ matrix.build_cmd }} "${VERSION#v}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/installers/
+
+  # GitHub Release
+  release:
+    name: Create GitHub Release
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: installer-*
+          merge-multiple: true
+          path: dist/installers/
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/installers/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true

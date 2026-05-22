@@ -25,7 +25,7 @@ export async function startServer(mode: Mode) {
   const sslOptions = getTlsOptions(mode);
   const csrfToken = randomUUID();
   const clients = new Set<WebSocket>();
-  const router = new WsRouter();
+  const router = new WsRouter(logger);
 
   router.register(Route.GET_PLUGINS, () =>
     discoverPlugins().map(c => ({

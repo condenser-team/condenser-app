@@ -19,13 +19,13 @@
 import { CdpSession } from '../shared/cdp.js';
 import { isSteamSharedContextTab } from '../shared/runtime.js';
 
-// ─── Configuration ─────────────────────────────────────────────────────────────
+// ─Configuration
 
 const DEBUG_PORTS = [8080, 9222];
 const CONNECT_TIMEOUT_MS = 5_000;
 const EVAL_TIMEOUT_MS = 10_000;
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
+// ─Types
 
 interface CdpTarget {
   id: string;
@@ -35,7 +35,7 @@ interface CdpTarget {
   webSocketDebuggerUrl: string;
 }
 
-// ─── Steam / CDP helpers ───────────────────────────────────────────────────────
+// ─Steam / CDP helpers
 
 async function findDebugEndpoint(): Promise<string> {
   for (const port of DEBUG_PORTS) {
@@ -88,7 +88,7 @@ async function evaluate<T = any>(session: CdpSession, expression: string): Promi
   return result?.result?.value as T;
 }
 
-// ─── Commands ──────────────────────────────────────────────────────────────────
+// ─Commands─
 
 async function cmdStatus(): Promise<void> {
   const endpoint = await findDebugEndpoint();
@@ -451,7 +451,7 @@ async function cmdWebpack(pattern: string): Promise<void> {
   }
 }
 
-// ─── CLI entry ─────────────────────────────────────────────────────────────────
+// ─CLI entry
 
 function parseArgs(argv: string[]): { command: string; args: string[]; target?: string } {
   const args = argv.slice(2);

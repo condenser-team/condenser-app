@@ -1,0 +1,42 @@
+name: condenser
+arch: ${ARCH}
+version: ${VERSION}
+release: 1
+section: utils
+priority: optional
+maintainer: kmturley
+description: |
+  Condenser – Steam UI injection service.
+  Injects React components into Steam's UI via Chrome DevTools Protocol.
+license: MIT
+homepage: https://github.com/kmturley/condenser
+
+contents:
+  # Binary
+  - src: dist/bin/condenser-linux-${ARCH_SUFFIX}
+    dst: /opt/condenser/condenser
+    file_info:
+      mode: 0755
+
+  # Frontend build output
+  - src: dist/frontend/
+    dst: /opt/condenser/dist/frontend/
+    type: tree
+
+  - src: dist/plugins/
+    dst: /opt/condenser/dist/plugins/
+    type: tree
+
+  # Systemd user service unit
+  - src: installers/linux/condenser.service
+    dst: /etc/systemd/user/condenser.service
+
+  # Uninstall helper
+  - src: installers/linux/uninstall.sh
+    dst: /opt/condenser/uninstall.sh
+    file_info:
+      mode: 0755
+
+scripts:
+  postinstall: installers/linux/scripts/postinstall.sh
+  preremove: installers/linux/scripts/preremove.sh
