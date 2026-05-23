@@ -16,4 +16,4 @@ fi
 
 echo "Condenser service installed."
 echo "Logs: journalctl --user -u condenser"
-echo "To uninstall: /opt/condenser/uninstall.sh  (or use your package manager)"
+echo "To uninstall: open 'Uninstall Condenser' from your Applications menu."

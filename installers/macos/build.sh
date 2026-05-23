@@ -36,6 +36,11 @@ cp installers/macos/com.condenser.plist "$PAYLOAD/usr/local/share/condenser/"
 cp installers/macos/uninstall.sh "$PAYLOAD/usr/local/share/condenser/"
 chmod +x "$PAYLOAD/usr/local/share/condenser/uninstall.sh"
 
+# GUI uninstaller app
+mkdir -p "$PAYLOAD/Applications"
+cp -r installers/macos/uninstaller-app "$PAYLOAD/Applications/Condenser (uninstall).app"
+chmod +x "$PAYLOAD/Applications/Condenser (uninstall).app/Contents/MacOS/uninstall"
+
 # Ensure postinstall is executable
 chmod +x installers/macos/scripts/postinstall
 chmod +x installers/macos/scripts/preremove

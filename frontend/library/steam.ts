@@ -40,6 +40,23 @@ export function findWebpackModuleByExport(
   return null;
 }
 
+// Like findWebpackModuleByExport but returns the matching export value, not the module.
+// Mirrors Decky's findModuleExport pattern.
+export function findWebpackExport(
+  registry: Map<string, any>,
+  filter: (exported: any) => boolean,
+): any {
+  for (const m of registry.values()) {
+    for (const candidate of [m.default, m]) {
+      if (!candidate || typeof candidate !== 'object') continue;
+      for (const key of Object.keys(candidate)) {
+        try { if (filter(candidate[key])) return candidate[key]; } catch (_) {}
+      }
+    }
+  }
+  return null;
+}
+
 export function discoverSteamContext(): string | null {
   const condenser = getCondenser();
   const registry: Map<string, any> = condenser.core.webpackRegistry
@@ -60,6 +77,12 @@ export function discoverSteamContext(): string | null {
       condenser.core.quickAccessMenuRenderer =
         Object.values(qamModule as object).find(isQAMRenderer) ?? null;
     }
+  }
+
+  if (!condenser.core.router) {
+    condenser.core.router =
+      findWebpackExport(registry, (e: any) => typeof e?.Navigate === 'function' && e?.NavigationManager)
+      ?? null;
   }
 
   return null;

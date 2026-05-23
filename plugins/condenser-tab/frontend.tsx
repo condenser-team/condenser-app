@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 import React, { useState, useEffect } from 'react';
-import { useSend } from 'condenser:api';
+import { useSend, navigate } from 'condenser:api';
 
 export const target = 'quick-access-menu';
 export const title  = 'Condenser';
@@ -24,13 +24,20 @@ export function Panel() {
     setCount(result.count);
   };
 
+  const handleNavigate = () => navigate('/condenser/system');
+
   return React.createElement(
     'div',
-    { style: { padding: '16px' } },
+    { style: { padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' } },
     React.createElement(
       'button',
       { className: 'DialogButton _DialogLayout Secondary', onClick: handleClick },
       count > 0 ? `Send Request (${count})` : 'Send Request',
+    ),
+    React.createElement(
+      'button',
+      { className: 'DialogButton _DialogLayout Secondary', onClick: handleNavigate },
+      'Open System Info',
     ),
   );
 }

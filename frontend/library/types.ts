@@ -4,8 +4,12 @@ export interface PluginComponent {
   target: string;
   key: string;
   title?: string;
-  tab: (R: typeof ReactModule) => ReactModule.ReactNode;
-  panel: ReactModule.ComponentType<{ websocketUrl: string }>;
+  // quick-access-menu targets
+  tab?: (R: typeof ReactModule) => ReactModule.ReactNode;
+  panel?: ReactModule.ComponentType<{ websocketUrl: string }>;
+  // big-picture targets
+  route?: string;
+  page?: ReactModule.ComponentType<{ websocketUrl: string }>;
 }
 
 export interface PluginNamespace {
@@ -25,6 +29,8 @@ export interface CondenserCore {
   quickAccessMenuRenderer: { type: unknown } | null;
   patched: boolean;
   patchedTypeCache: Map<unknown, unknown>;
+  router: { Navigate: (path: string) => void } | null;
+  bigPicturePatched: boolean;
   booted: boolean;
 }
 
@@ -43,6 +49,12 @@ export interface CondenserNamespace {
   qam: {
     renderComponent: (id: string) => void;
     activateQuickAccessMenu: () => void;
+  };
+  bigpicture: {
+    renderComponent: (id: string) => void;
+    activateBigPictureRouter: () => void;
+    showPage: (path: string) => void;
+    closePage: () => void;
   };
   tree: {
     findInFiberTree: (node: unknown, filter: (n: unknown) => boolean) => unknown;

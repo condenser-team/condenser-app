@@ -1,18 +1,7 @@
 
 import { findInElementTree, findInFiberTree, getReactFiberRoot } from './tree.js';
 import { getCondenser } from './condenser.js';
-
-export function wrapReturnValue(
-  object: any,
-  property: string,
-  handler: (args: any[], returnValue: any) => any,
-): void {
-  const original = object[property];
-  object[property] = function(this: any, ...args: any[]) {
-    return handler.call(this, args, original.call(this, ...args));
-  };
-  object[property].toString = () => original.toString();
-}
+import { wrapReturnValue } from './patch.js';
 
 export function renderComponent(id: string): void {
   const condenser = getCondenser();
@@ -84,7 +73,7 @@ export function appendTab(
 
     for (const [id, ns] of Object.entries(condenser.components as Record<string, any>)) {
       const def = ns?.component;
-      if (!def || def.target !== target) continue;
+      if (!def || def.target !== target || !def.tab) continue;
       if (tabsNode.props.tabs.some((t: any) => t.key === def.key)) continue;
 
       if (!titleClassName) {

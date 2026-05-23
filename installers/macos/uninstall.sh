@@ -11,5 +11,6 @@ rm -f "$PLIST"
 echo "Removing Condenser files..."
 sudo rm -rf /usr/local/share/condenser
 sudo rm -f /usr/local/bin/condenser
+sudo rm -rf "/Applications/Condenser (uninstall).app"
 
 echo "Condenser uninstalled."

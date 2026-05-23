@@ -1,5 +1,6 @@
 
-import { renderComponent } from './qam.js';
+import { renderComponent as qamRender } from './qam.js';
+import { renderComponent as bpRender } from './bigpicture.js';
 import { MessageType, Route, WsEvent, Auth } from '../../shared/protocol.js';
 import { getCondenser } from './condenser.js';
 
@@ -40,8 +41,11 @@ export async function loadPlugin(id: string, url: string): Promise<void> {
       title: mod.title,
       tab: mod.Tab,
       panel: mod.Panel,
+      route: mod.route,
+      page: mod.Page,
     };
-    renderComponent(id);
+    qamRender(id);
+    bpRender(id);
     ns.forceUpdate?.();
     console.info('[condenser] Loaded plugin', id);
   } catch (e: any) {

@@ -37,6 +37,17 @@ contents:
     file_info:
       mode: 0755
 
+  # Symlink binary onto PATH
+  - src: /opt/condenser/condenser
+    dst: /usr/local/bin/condenser
+    type: symlink
+
+  # GUI uninstaller desktop entry
+  - src: installers/linux/condenser-uninstall.desktop
+    dst: /usr/share/applications/condenser-uninstall.desktop
+    file_info:
+      mode: 0644
+
 scripts:
   postinstall: installers/linux/scripts/postinstall.sh
   preremove: installers/linux/scripts/preremove.sh

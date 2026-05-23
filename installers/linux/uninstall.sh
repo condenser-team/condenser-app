@@ -11,6 +11,8 @@ rm -f /etc/systemd/user/condenser.service
 systemctl daemon-reload 2>/dev/null || true
 
 echo "Removing Condenser files..."
+sudo rm -f /usr/local/bin/condenser
+sudo rm -f /usr/share/applications/condenser-uninstall.desktop
 sudo rm -rf /opt/condenser
 
 echo "Condenser uninstalled."

@@ -13,9 +13,12 @@ chown -R "$LOGGED_IN_USER" "$INSTALL_DIR"
 mkdir -p "$LAUNCH_AGENTS_DIR"
 cp "$PLIST_SRC" "$LAUNCH_AGENTS_DIR/com.condenser.plist"
 
+# Symlink binary onto PATH so users can run: condenser uninstall
+ln -sf "$BINARY" /usr/local/bin/condenser
+
 # Load the agent as the logged-in user (ignore errors if already loaded)
 sudo -u "$LOGGED_IN_USER" launchctl load -w "$LAUNCH_AGENTS_DIR/com.condenser.plist" 2>/dev/null || true
 
 echo "Condenser service installed and started."
 echo "Logs: $INSTALL_DIR/condenser.log"
-echo "To uninstall: /usr/local/share/condenser/uninstall.sh"
+echo "To uninstall: open 'Condenser (uninstall)' from your Applications folder."
