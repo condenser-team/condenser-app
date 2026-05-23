@@ -2,10 +2,16 @@
 # Uninstall Condenser: stop the service and remove all files.
 set -e
 
-PLIST="$HOME/Library/LaunchAgents/com.condenser.plist"
+# Resolve the actual logged-in user even when this script runs as root via sudo.
+LOGGED_IN_USER=$(stat -f "%Su" /dev/console 2>/dev/null || echo "${SUDO_USER:-$USER}")
+USER_UID=$(id -u "$LOGGED_IN_USER")
+USER_HOME=$(eval echo "~$LOGGED_IN_USER")
+PLIST="$USER_HOME/Library/LaunchAgents/com.condenser.plist"
 
 echo "Stopping Condenser service..."
-launchctl unload -w "$PLIST" 2>/dev/null || true
+# bootout works without the plist file and is the modern replacement for unload.
+launchctl bootout "gui/$USER_UID/com.condenser" 2>/dev/null || \
+  sudo -u "$LOGGED_IN_USER" launchctl unload -w "$PLIST" 2>/dev/null || true
 rm -f "$PLIST"
 
 echo "Removing Condenser files..."
