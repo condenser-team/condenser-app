@@ -26,9 +26,9 @@ test.afterAll(async () => {
 });
 
 test.describe('Big Picture router', () => {
-  test('core.bigPicturePatched is true after router patching', async () => {
+  test('core.pagePatched is true after router patching', async () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
-    const patched = await page.evaluate(() => !!(window as any).__condenser?.core?.bigPicturePatched);
+    const patched = await page.evaluate(() => !!(window as any).__condenser?.core?.pagePatched);
     expect(patched).toBe(true);
   });
 

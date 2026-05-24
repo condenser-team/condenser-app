@@ -62,19 +62,19 @@ test.describe('Condenser boot', () => {
     expect(result.onMessage).toBe(true);
   });
 
-  test('bigpicture API surface is complete', async () => {
+  test('page API surface is complete', async () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
     const result = await page.evaluate(() => {
-      const bp = (window as any).__condenser?.bigpicture;
+      const p = (window as any).__condenser?.page;
       return {
-        renderComponent: typeof bp?.renderComponent === 'function',
-        activateBigPictureRouter: typeof bp?.activateBigPictureRouter === 'function',
-        showPage: typeof bp?.showPage === 'function',
-        closePage: typeof bp?.closePage === 'function',
+        renderComponent: typeof p?.renderComponent === 'function',
+        activatePage: typeof p?.activatePage === 'function',
+        showPage: typeof p?.showPage === 'function',
+        closePage: typeof p?.closePage === 'function',
       };
     });
     expect(result.renderComponent).toBe(true);
-    expect(result.activateBigPictureRouter).toBe(true);
+    expect(result.activatePage).toBe(true);
     expect(result.showPage).toBe(true);
     expect(result.closePage).toBe(true);
   });

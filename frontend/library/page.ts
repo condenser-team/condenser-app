@@ -2,6 +2,7 @@
 import { getCondenser } from './condenser.js';
 import { findInFiberTree, getReactFiberRoot } from './tree.js';
 import { wrapReturnValue } from './patch.js';
+import { injectGlobalComponents } from './persistent.js';
 
 export function renderComponent(id: string): void {
   const condenser = getCondenser();
@@ -9,14 +10,14 @@ export function renderComponent(id: string): void {
   if (def?.page && def?.route) scheduleActivation();
 }
 
-export function activateBigPictureRouter(): void {
+export function activatePage(): void {
   scheduleActivation();
 }
 
 function scheduleActivation(): void {
   const condenser = getCondenser();
-  if (condenser.core.bigPicturePatched) return;
-  condenser.core.bigPicturePatched = true;
+  if (condenser.core.pagePatched) return;
+  condenser.core.pagePatched = true;
   patchRouter();
 }
 
@@ -25,7 +26,7 @@ function patchRouter(): void {
 
   const rootEl = document.getElementById('root');
   if (!rootEl) {
-    console.warn('[condenser] bigpicture: No #root element');
+    console.warn('[condenser] page: No #root element');
     return;
   }
 
@@ -40,8 +41,8 @@ function patchRouter(): void {
   );
 
   if (!routerNode) {
-    console.warn('[condenser] bigpicture: Router node not found, retrying in 3s');
-    condenser.core.bigPicturePatched = false;
+    console.warn('[condenser] page: Router node not found, retrying in 3s');
+    condenser.core.pagePatched = false;
     setTimeout(patchRouter, 3000);
     return;
   }
@@ -57,7 +58,7 @@ function patchRouter(): void {
     const children = ret.props?.children;
     const ycElement = Array.isArray(children) ? children[0] : children;
     const routeList = ycElement?.props?.children;
-    if (!Array.isArray(routeList)) return ret;
+    if (!Array.isArray(routeList)) return injectGlobalComponents(ret);
 
     // Lazily discover the Route component from the first existing route.
     if (!RouteComponent && routeList.length > 0) {
@@ -66,7 +67,7 @@ function patchRouter(): void {
     if (RouteComponent) {
       injectRoutes(routeList, RouteComponent);
     }
-    return ret;
+    return injectGlobalComponents(ret);
   });
 
   // Swap the current fiber instance to use the patched function.
@@ -88,7 +89,7 @@ function patchRouter(): void {
     ancestor = ancestor.return;
   }
 
-  console.info('[condenser] bigpicture: Router patched');
+  console.info('[condenser] page: Router patched');
 }
 
 // Cache stable wrapper components per plugin ID so React doesn't remount on every router render.

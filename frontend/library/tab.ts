@@ -6,13 +6,13 @@ import { wrapReturnValue } from './patch.js';
 export function renderComponent(id: string): void {
   const condenser = getCondenser();
   const def = condenser.components[id]?.component;
-  if (def?.tab) activateQuickAccessMenu();
+  if (def?.tab) activateTab();
 }
 
-export function activateQuickAccessMenu(): void {
+export function activateTab(): void {
   const condenser = getCondenser();
-  if (condenser.core.patched) return;
-  condenser.core.patched = true;
+  if (condenser.core.tabPatched) return;
+  condenser.core.tabPatched = true;
 
   const renderer = condenser.core.quickAccessMenuRenderer;
   if (!renderer) return;

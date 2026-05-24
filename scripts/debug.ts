@@ -100,7 +100,7 @@ async function cmdStatus(): Promise<void> {
     const state = await evaluate<any>(session, `JSON.stringify({
       booted:       !!(window.__condenser?.core?.booted),
       reactVersion: window.__condenser?.core?.React?.version ?? null,
-      patched:      !!(window.__condenser?.core?.patched),
+      tabPatched:   !!(window.__condenser?.core?.tabPatched),
       wsUrl:        window.__condenser?.core?.url ?? null,
       plugins:      Object.keys(window.__condenser?.components ?? {}),
       hasQAM:       !!(window.__condenser?.core?.quickAccessMenuRenderer),
@@ -112,7 +112,7 @@ async function cmdStatus(): Promise<void> {
     console.log('');
     console.log('Condenser booted:', s.booted ? '✓' : '✗');
     console.log('React version:   ', s.reactVersion ?? '(not found)');
-    console.log('QAM patched:     ', s.patched ? '✓' : '✗');
+    console.log('Tab patched:     ', s.tabPatched ? '✓' : '✗');
     console.log('Backend WS:      ', s.wsUrl ?? '(not set)');
     console.log('Plugins loaded:  ', s.plugins.length ? s.plugins.join(', ') : '(none)');
     console.log('QAM renderer:    ', s.hasQAM ? '✓' : '✗');
@@ -222,7 +222,8 @@ async function cmdCondenser(): Promise<void> {
     const raw = await evaluate<string>(session, `JSON.stringify({
       booted:            !!(window.__condenser?.core?.booted),
       setup:             !!(window.__condenser?.core?.setup),
-      patched:           !!(window.__condenser?.core?.patched),
+      tabPatched:        !!(window.__condenser?.core?.tabPatched),
+      pagePatched:       !!(window.__condenser?.core?.pagePatched),
       csrfToken:         window.__condenser?.core?.csrfToken ? '(set)' : '(not set)',
       wsUrl:             window.__condenser?.core?.url ?? null,
       reactVersion:      window.__condenser?.core?.React?.version ?? null,

@@ -9,8 +9,8 @@ export interface PluginComponent {
   // BPM surface: plugin exports Page + route
   route?: string;
   page?: ReactModule.ComponentType<{ websocketUrl: string }>;
-  // Global surface: plugin exports Global (rendered on every page)
-  global?: ReactModule.ComponentType<{ websocketUrl: string }>;
+  // Persistent surface: plugin exports Persistent (rendered on every page)
+  persistent?: ReactModule.ComponentType<{ websocketUrl: string }>;
 }
 
 export interface PluginNamespace {
@@ -28,10 +28,10 @@ export interface CondenserCore {
   ReactDOM: { createRoot: (el: Element) => { render: (node: ReactModule.ReactNode) => void } };
   webpackRegistry: Map<string, unknown>;
   quickAccessMenuRenderer: { type: unknown } | null;
-  patched: boolean;
+  tabPatched: boolean;
   patchedTypeCache: Map<unknown, unknown>;
   router: { Navigate: (path: string) => void } | null;
-  bigPicturePatched: boolean;
+  pagePatched: boolean;
   booted: boolean;
 }
 
@@ -47,15 +47,18 @@ export interface CondenserNamespace {
   steam: {
     discoverSteamContext: () => string | null;
   };
-  qam: {
+  tab: {
     renderComponent: (id: string) => void;
-    activateQuickAccessMenu: () => void;
+    activateTab: () => void;
   };
-  bigpicture: {
+  page: {
     renderComponent: (id: string) => void;
-    activateBigPictureRouter: () => void;
+    activatePage: () => void;
     showPage: (path: string) => void;
     closePage: () => void;
+  };
+  persistent: {
+    renderComponent: (id: string) => void;
   };
   tree: {
     findInFiberTree: (node: unknown, filter: (n: unknown) => boolean) => unknown;

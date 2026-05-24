@@ -38,7 +38,7 @@ export function Panel() {
     React.createElement(
       'button',
       { className: 'DialogButton _DialogLayout Secondary', onClick: handleNavigate },
-      'Open System Info',
+      'Open Page',
     ),
   );
 }
@@ -62,7 +62,7 @@ export function Page(_: { websocketUrl: string }) {
   return React.createElement(
     'div',
     { style: { padding: '24px', color: 'white', fontFamily: 'sans-serif' } },
-    React.createElement('h2', { style: { marginBottom: '16px' } }, 'System Info'),
+    React.createElement('h2', { style: { marginBottom: '16px' } }, 'Page component'),
     info
       ? React.createElement(
           'div',
@@ -77,5 +77,28 @@ export function Page(_: { websocketUrl: string }) {
       { className: 'DialogButton _DialogLayout Secondary', style: { marginBottom: '16px' }, onClick: back },
       '← Back',
     ),
+  );
+}
+
+// Persistent surface — always rendered, regardless of active page
+export function Persistent(_: { websocketUrl: string }) {
+  return React.createElement(
+    'div',
+    {
+      id: 'condenser-global-indicator',
+      style: {
+        position: 'fixed',
+        top: '60px',
+        right: '32px',
+        background: 'rgba(0,0,0,0.6)',
+        color: '#4fc3f7',
+        fontSize: '10px',
+        padding: '2px 6px',
+        borderRadius: '4px',
+        pointerEvents: 'none',
+        zIndex: 9999,
+      },
+    },
+    'Global component',
   );
 }

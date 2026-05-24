@@ -26,9 +26,9 @@ test.afterAll(async () => {
 });
 
 test.describe('QAM injection', () => {
-  test('core.patched is true after QAM activation', async () => {
+  test('core.tabPatched is true after tab activation', async () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
-    const patched = await page.evaluate(() => !!(window as any).__condenser?.core?.patched);
+    const patched = await page.evaluate(() => !!(window as any).__condenser?.core?.tabPatched);
     expect(patched).toBe(true);
   });
 

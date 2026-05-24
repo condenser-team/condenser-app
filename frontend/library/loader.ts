@@ -1,6 +1,7 @@
 
-import { renderComponent as qamRender } from './qam.js';
-import { renderComponent as bpRender } from './bigpicture.js';
+import { renderComponent as tabRender } from './tab.js';
+import { renderComponent as pageRender } from './page.js';
+import { renderComponent as persistentRender } from './persistent.js';
 import { MessageType, Route, WsEvent, Auth } from '../../shared/protocol.js';
 import { getCondenser } from './condenser.js';
 
@@ -42,10 +43,11 @@ export async function loadPlugin(id: string, url: string): Promise<void> {
       panel: mod.Panel,
       route: mod.route,
       page: mod.Page,
-      global: mod.Global,
+      persistent: mod.Persistent,
     };
-    qamRender(id);
-    bpRender(id);
+    tabRender(id);
+    pageRender(id);
+    persistentRender(id);
     ns.forceUpdaters?.forEach(fn => fn());
     console.info('[condenser] Loaded plugin', id);
   } catch (e: any) {

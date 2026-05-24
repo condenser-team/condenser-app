@@ -8,7 +8,7 @@ export function navigate(path: string): void {
     ?? router?.WindowStore?.SteamUIWindows?.[0];
   win?.Navigate?.(path);
   // Steam's router doesn't trigger history.pushState, so drive the portal directly.
-  condenser.bigpicture.showPage(path);
+  condenser.page.showPage(path);
 }
 
 export function back(): void {
@@ -18,7 +18,7 @@ export function back(): void {
     ?? router?.WindowStore?.GamepadUIMainWindowInstance
     ?? router?.WindowStore?.SteamUIWindows?.[0];
   win?.NavigateBack?.();
-  condenser.bigpicture.closePage();
+  condenser.page.closePage();
 }
 
 export function useSend(pluginId: string): (action: string, data?: unknown) => Promise<unknown> {
