@@ -40,17 +40,15 @@ test.describe('QAM injection', () => {
     expect(found).toBe(true);
   });
 
-  test('condenser-tab component is loaded with correct target, tab, and panel', async () => {
+  test('condenser-system component is loaded with tab and panel', async () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
     const result = await page.evaluate(() => {
-      const comp = (window as any).__condenser?.components?.['condenser-tab']?.component;
+      const comp = (window as any).__condenser?.components?.['condenser-system']?.component;
       return {
-        target: comp?.target,
         hasTab: typeof comp?.tab === 'function',
         hasPanel: typeof comp?.panel === 'function',
       };
     });
-    expect(result.target).toBe('quick-access-menu');
     expect(result.hasTab).toBe(true);
     expect(result.hasPanel).toBe(true);
   });
@@ -59,18 +57,19 @@ test.describe('QAM injection', () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
     const result = await page.evaluate(async () => {
       const c = (window as any).__condenser;
-      const ns = (c.components['condenser-tab'] ||= {});
-      const saved = ns.forceUpdate;
+      const ns = (c.components['condenser-system'] ||= {});
+      ns.forceUpdaters ??= new Set();
       let called = false;
-      ns.forceUpdate = () => { called = true; };
+      const spy = () => { called = true; };
+      ns.forceUpdaters.add(spy);
       try {
         const plugins: any[] = await c.plugins.callPlugin('get-plugins');
-        const plugin = plugins.find((p: any) => p.id === 'condenser-tab');
-        if (!plugin) return { error: 'condenser-tab not in get-plugins response' };
+        const plugin = plugins.find((p: any) => p.id === 'condenser-system');
+        if (!plugin) return { error: 'condenser-system not in get-plugins response' };
         await c.plugins.loadPlugin(plugin.id, plugin.url + '?t=' + Date.now());
         return { called };
       } finally {
-        ns.forceUpdate = saved;
+        ns.forceUpdaters.delete(spy);
       }
     });
     expect((result as any).error, (result as any).error).toBeUndefined();

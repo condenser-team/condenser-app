@@ -36,17 +36,17 @@ export async function loadPlugin(id: string, url: string): Promise<void> {
     const mod = await import(/* @vite-ignore */ url);
     const ns = (condenser.components[id] ||= {});
     ns.component = {
-      target: mod.target,
       key: mod.key ?? id,
       title: mod.title,
       tab: mod.Tab,
       panel: mod.Panel,
       route: mod.route,
       page: mod.Page,
+      global: mod.Global,
     };
     qamRender(id);
     bpRender(id);
-    ns.forceUpdate?.();
+    ns.forceUpdaters?.forEach(fn => fn());
     console.info('[condenser] Loaded plugin', id);
   } catch (e: any) {
     console.error('[condenser] Failed to load plugin', id, e.message);

@@ -233,7 +233,6 @@ async function cmdCondenser(): Promise<void> {
       components: Object.fromEntries(
         Object.entries(window.__condenser?.components ?? {}).map(([id, ns]) => [id, {
           hasComponent:    !!(ns?.component),
-          target:          ns?.component?.target ?? null,
           key:             ns?.component?.key ?? null,
           hasPanel:        !!(ns?.component?.panel),
           hasForceUpdate:  typeof ns?.forceUpdate === 'function',
@@ -474,7 +473,7 @@ async function main(): Promise<void> {
     errors:    () => cmdErrors(target),
     condenser: () => cmdCondenser(),
     react:     () => cmdReact(),
-    render:    () => cmdRender(args[0] ?? 'condenser-tab'),
+    render:    () => cmdRender(args[0] ?? 'condenser-system'),
     styles:    () => cmdStyles(args[0] ?? 'body', target),
     webpack:   () => cmdWebpack(args[0] ?? ''),
   };

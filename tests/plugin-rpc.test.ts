@@ -30,7 +30,7 @@ test.describe('Plugin RPC', () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
     const result = await page.evaluate(async () => {
       const c = (window as any).__condenser;
-      return c.plugins.callPlugin('condenser-bigpicture', { action: 'getInfo' });
+      return c.plugins.callPlugin('condenser-system', { action: 'getInfo' });
     });
     expect(result).toMatchObject({
       platform: expect.any(String),
@@ -47,7 +47,7 @@ test.describe('Plugin RPC', () => {
     const error = await page.evaluate(async () => {
       const c = (window as any).__condenser;
       return c.plugins
-        .callPlugin('nonexistent-plugin', { action: 'test' })
+        .callPlugin('no-such-plugin', { action: 'test' })
         .then(() => null)
         .catch((e: Error) => e.message);
     });
@@ -63,7 +63,7 @@ test.describe('Plugin RPC', () => {
       c.core.ws = null;
       try {
         return await c.plugins
-          .callPlugin('condenser-bigpicture', { action: 'getInfo' })
+          .callPlugin('condenser-system', { action: 'getInfo' })
           .then(() => null)
           .catch((e: Error) => e.message);
       } finally {

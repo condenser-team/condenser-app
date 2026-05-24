@@ -1,20 +1,21 @@
 import type * as ReactModule from 'react';
 
 export interface PluginComponent {
-  target: string;
   key: string;
   title?: string;
-  // quick-access-menu targets
+  // QAM surface: plugin exports Tab + Panel
   tab?: (R: typeof ReactModule) => ReactModule.ReactNode;
   panel?: ReactModule.ComponentType<{ websocketUrl: string }>;
-  // big-picture targets
+  // BPM surface: plugin exports Page + route
   route?: string;
   page?: ReactModule.ComponentType<{ websocketUrl: string }>;
+  // Global surface: plugin exports Global (rendered on every page)
+  global?: ReactModule.ComponentType<{ websocketUrl: string }>;
 }
 
 export interface PluginNamespace {
   component?: PluginComponent;
-  forceUpdate?: () => void;
+  forceUpdaters?: Set<() => void>;
 }
 
 export interface CondenserCore {

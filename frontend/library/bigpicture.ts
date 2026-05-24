@@ -6,8 +6,7 @@ import { wrapReturnValue } from './patch.js';
 export function renderComponent(id: string): void {
   const condenser = getCondenser();
   const def = condenser.components[id]?.component;
-  if (!def?.target) return;
-  if (def.target === 'big-picture') scheduleActivation();
+  if (def?.page && def?.route) scheduleActivation();
 }
 
 export function activateBigPictureRouter(): void {
@@ -104,8 +103,10 @@ function getInjectedPage(id: string): any {
     const [, setTick] = React.useState(0);
     const ns = (condenser.components[id] ||= {});
     React.useLayoutEffect(() => {
-      ns.forceUpdate = () => setTick((t: number) => t + 1);
-      return () => { ns.forceUpdate = undefined; };
+      ns.forceUpdaters ??= new Set();
+      const update = () => setTick((t: number) => t + 1);
+      ns.forceUpdaters.add(update);
+      return () => { ns.forceUpdaters?.delete(update); };
     }, []);
     const Page = ns.component?.page;
     return Page ? React.createElement(Page, { websocketUrl: props.websocketUrl }) : null;
@@ -121,7 +122,7 @@ function injectRoutes(routeList: any[], RouteComponent: any): void {
 
   for (const [id, ns] of Object.entries(condenser.components as Record<string, any>)) {
     const def = ns?.component;
-    if (!def || def.target !== 'big-picture' || !def.route || !def.page) continue;
+    if (!def?.page || !def?.route) continue;
     if (routeList.some((r: any) => r?.props?.path === def.route)) continue;
     routeList.push(
       React.createElement(

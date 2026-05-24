@@ -1,7 +1,7 @@
 /**
  * Verifies that the Big Picture Mode (BPM) router is patched and plugin routes are injected.
  *
- * Checks patch state, component registration, and presence of the condenser-bigpicture
+ * Checks patch state, component registration, and presence of the condenser-system
  * route in the BPM router's live React fiber tree.
  */
 
@@ -32,17 +32,15 @@ test.describe('Big Picture router', () => {
     expect(patched).toBe(true);
   });
 
-  test('condenser-bigpicture component is loaded with correct target, route, and page', async () => {
+  test('condenser-system component is loaded with route and page', async () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
     const result = await page.evaluate(() => {
-      const comp = (window as any).__condenser?.components?.['condenser-bigpicture']?.component;
+      const comp = (window as any).__condenser?.components?.['condenser-system']?.component;
       return {
-        target: comp?.target,
         route: comp?.route,
         hasPage: typeof comp?.page === 'function',
       };
     });
-    expect(result.target).toBe('big-picture');
     expect(result.route).toBe('/condenser/system');
     expect(result.hasPage).toBe(true);
   });
