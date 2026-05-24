@@ -92,6 +92,29 @@ function patchRouter(): void {
   console.info('[condenser] bigpicture: Router patched');
 }
 
+// Cache stable wrapper components per plugin ID so React doesn't remount on every router render.
+const injectedPageCache = new Map<string, any>();
+
+function getInjectedPage(id: string): any {
+  if (injectedPageCache.has(id)) return injectedPageCache.get(id);
+  const condenser = getCondenser();
+  const React = condenser.core.React!;
+
+  function InjectedPage(props: { websocketUrl: string }) {
+    const [, setTick] = React.useState(0);
+    const ns = (condenser.components[id] ||= {});
+    React.useLayoutEffect(() => {
+      ns.forceUpdate = () => setTick((t: number) => t + 1);
+      return () => { ns.forceUpdate = undefined; };
+    }, []);
+    const Page = ns.component?.page;
+    return Page ? React.createElement(Page, { websocketUrl: props.websocketUrl }) : null;
+  }
+
+  injectedPageCache.set(id, InjectedPage);
+  return InjectedPage;
+}
+
 function injectRoutes(routeList: any[], RouteComponent: any): void {
   const condenser = getCondenser();
   const React = condenser.core.React!;
@@ -104,7 +127,7 @@ function injectRoutes(routeList: any[], RouteComponent: any): void {
       React.createElement(
         RouteComponent,
         { path: def.route, key: `condenser-${id}` },
-        React.createElement(def.page, { websocketUrl: condenser.core.url ?? '' }),
+        React.createElement(getInjectedPage(id), { websocketUrl: condenser.core.url ?? '' }),
       ),
     );
   }
