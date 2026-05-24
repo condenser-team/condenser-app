@@ -21,11 +21,6 @@ export function Page(_: { websocketUrl: string }) {
   return React.createElement(
     'div',
     { style: { padding: '24px', color: 'white', fontFamily: 'sans-serif' } },
-    React.createElement(
-      'button',
-      { className: 'DialogButton _DialogLayout Secondary', style: { marginBottom: '16px' }, onClick: back },
-      '← Back',
-    ),
     React.createElement('h2', { style: { marginBottom: '16px' } }, 'System Info'),
     info
       ? React.createElement(
@@ -36,5 +31,10 @@ export function Page(_: { websocketUrl: string }) {
           React.createElement('p', null, `Free memory: ${Math.round(info.memory / 1024 / 1024)} MB`),
         )
       : React.createElement('p', null, 'Loading…'),
+    React.createElement(
+      'button',
+      { className: 'DialogButton _DialogLayout Secondary', style: { marginBottom: '16px' }, onClick: back },
+      '← Back',
+    ),
   );
 }

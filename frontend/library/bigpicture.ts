@@ -1,9 +1,7 @@
 
 import { getCondenser } from './condenser.js';
-
-// Module-level portal handles — one overlay covers all big-picture plugins.
-let portalContainer: HTMLElement | null = null;
-let portalRoot: { render: (node: any) => void } | null = null;
+import { findInFiberTree, getReactFiberRoot } from './tree.js';
+import { wrapReturnValue } from './patch.js';
 
 export function renderComponent(id: string): void {
   const condenser = getCondenser();
@@ -20,56 +18,98 @@ function scheduleActivation(): void {
   const condenser = getCondenser();
   if (condenser.core.bigPicturePatched) return;
   condenser.core.bigPicturePatched = true;
+  patchRouter();
+}
 
-  const React = condenser.core.React;
-  const ReactDOM = condenser.core.ReactDOM;
-  if (!React || !ReactDOM) {
-    console.warn('[condenser] bigpicture: React/ReactDOM not ready');
+function patchRouter(): void {
+  const condenser = getCondenser();
+
+  const rootEl = document.getElementById('root');
+  if (!rootEl) {
+    console.warn('[condenser] bigpicture: No #root element');
     return;
   }
 
-  // Fixed-position portal that covers the viewport when a big-picture route is active.
-  portalContainer = document.createElement('div');
-  portalContainer.id = 'condenser-bigpicture-portal';
-  portalContainer.style.cssText =
-    'position:fixed;inset:0;z-index:99999;background:#1b1f24;display:none;overflow:auto;';
-  document.body.appendChild(portalContainer);
-  portalRoot = ReactDOM.createRoot(portalContainer);
+  const fiberRoot = getReactFiberRoot(rootEl);
 
-  // Intercept the History API to catch React Router navigation.
-  // Steam's Navigate() ultimately calls history.pushState internally.
-  const origPush    = history.pushState.bind(history);
-  const origReplace = history.replaceState.bind(history);
-  history.pushState    = (state: any, unused: string, url?: string | URL | null) => { origPush(state, unused, url);    updatePortal(); };
-  history.replaceState = (state: any, unused: string, url?: string | URL | null) => { origReplace(state, unused, url); updatePortal(); };
-  window.addEventListener('popstate', updatePortal);
+  // The gamepad router is a React.memo-wrapped anonymous component that renders all BPM routes.
+  // It contains 'Settings.Root()' in its source and takes no props (loggedIn is undefined).
+  const routerNode = findInFiberTree(fiberRoot, (node: any) =>
+    typeof node?.type === 'function' &&
+    typeof node?.pendingProps?.loggedIn === 'undefined' &&
+    (node.type.toString() as string).includes('Settings.Root()'),
+  );
 
-  updatePortal();
+  if (!routerNode) {
+    console.warn('[condenser] bigpicture: Router node not found, retrying in 3s');
+    condenser.core.bigPicturePatched = false;
+    setTimeout(patchRouter, 3000);
+    return;
+  }
+
+  // The Route component is in a lazily-loaded webpack chunk not available at boot.
+  // Discover it at render time from the first existing route element.
+  let RouteComponent: any = null;
+
+  // Patch elementType.type so every future render injects our routes.
+  wrapReturnValue(routerNode.elementType, 'type', (_args: any[], ret: any) => {
+    if (!ret) return ret;
+    // The router renders Fragment > yc (TopLevelTransition) > [Route, ...].
+    const children = ret.props?.children;
+    const ycElement = Array.isArray(children) ? children[0] : children;
+    const routeList = ycElement?.props?.children;
+    if (!Array.isArray(routeList)) return ret;
+
+    // Lazily discover the Route component from the first existing route.
+    if (!RouteComponent && routeList.length > 0) {
+      RouteComponent = routeList[0]?.type;
+    }
+    if (RouteComponent) {
+      injectRoutes(routeList, RouteComponent);
+    }
+    return ret;
+  });
+
+  // Swap the current fiber instance to use the patched function.
+  routerNode.type = routerNode.elementType.type;
+  if (routerNode.alternate) routerNode.alternate.type = routerNode.type;
+
+  // React.memo caches the initial render (no props = no change detected).
+  // Override memoizedProps so the next reconcile sees a prop diff and re-renders once.
+  routerNode.memoizedProps = { _condenserRouterUpdate: true };
+  if (routerNode.alternate) routerNode.alternate.memoizedProps = { _condenserRouterUpdate: true };
+
+  // Trigger a re-render by calling forceUpdate on the nearest class-component ancestor.
+  let ancestor: any = routerNode.return;
+  while (ancestor) {
+    if (ancestor.stateNode && typeof (ancestor.stateNode as any).forceUpdate === 'function') {
+      (ancestor.stateNode as any).forceUpdate();
+      break;
+    }
+    ancestor = ancestor.return;
+  }
+
+  console.info('[condenser] bigpicture: Router patched');
 }
 
-export function showPage(path: string): void {
-  if (!portalContainer || !portalRoot) return;
+function injectRoutes(routeList: any[], RouteComponent: any): void {
   const condenser = getCondenser();
   const React = condenser.core.React!;
 
-  const pages: any[] = [];
   for (const [id, ns] of Object.entries(condenser.components as Record<string, any>)) {
     const def = ns?.component;
     if (!def || def.target !== 'big-picture' || !def.route || !def.page) continue;
-    if (path !== def.route) continue;
-    pages.push(React.createElement(def.page, { key: id, websocketUrl: condenser.core.url ?? '' }));
+    if (routeList.some((r: any) => r?.props?.path === def.route)) continue;
+    routeList.push(
+      React.createElement(
+        RouteComponent,
+        { path: def.route, key: `condenser-${id}` },
+        React.createElement(def.page, { websocketUrl: condenser.core.url ?? '' }),
+      ),
+    );
   }
-
-  portalContainer.style.display = pages.length ? 'block' : 'none';
-  portalRoot.render(pages.length ? React.createElement(React.Fragment, null, ...pages) : null);
 }
 
-export function closePage(): void {
-  if (!portalContainer || !portalRoot) return;
-  portalContainer.style.display = 'none';
-  portalRoot.render(null);
-}
-
-function updatePortal(): void {
-  showPage(window.location.pathname);
-}
+// No-ops kept for API compatibility — superseded by router patching.
+export function showPage(_path: string): void {}
+export function closePage(): void {}
