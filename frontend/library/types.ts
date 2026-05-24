@@ -33,6 +33,7 @@ export interface CondenserCore {
   router: { Navigate: (path: string) => void } | null;
   pagePatched: boolean;
   booted: boolean;
+  showModal?: (content: unknown, title?: string) => void;
 }
 
 export interface CondenserNamespace {
@@ -46,6 +47,10 @@ export interface CondenserNamespace {
   };
   steam: {
     discoverSteamContext: () => string | null;
+    findWebpackModule: (registry: Map<string, unknown>, filter: (m: unknown) => boolean) => unknown;
+    findWebpackModuleByExport: (registry: Map<string, unknown>, filter: (e: unknown) => boolean) => unknown;
+    findWebpackExport: (registry: Map<string, unknown>, filter: (e: unknown) => boolean) => unknown;
+    findModuleDetailsByExport: (registry: Map<string, unknown>, filter: (e: unknown) => boolean) => [unknown, unknown] | null;
   };
   tab: {
     renderComponent: (id: string) => void;
@@ -61,8 +66,11 @@ export interface CondenserNamespace {
     renderComponent: (id: string) => void;
   };
   tree: {
+    getReactInstance: (element: Element) => unknown;
+    getReactFiberRoot: (element: Element) => unknown;
     findInFiberTree: (node: unknown, filter: (n: unknown) => boolean) => unknown;
     findInElementTree: (node: unknown, filter: (n: unknown) => boolean) => unknown;
-    getReactFiberRoot: (element: Element) => unknown;
+    wrapReactType: (node: unknown, prop?: string) => unknown;
+    wrapReactClass: (node: unknown, prop?: string) => unknown;
   };
 }

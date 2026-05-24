@@ -40,6 +40,23 @@ export function findWebpackModuleByExport(
   return null;
 }
 
+// Returns [module, matchedExportValue] for the first export that satisfies the filter.
+// Mirrors Decky's findModuleDetailsByExport pattern.
+export function findModuleDetailsByExport(
+  registry: Map<string, any>,
+  filter: (exported: any) => boolean,
+): [module: any, export: any] | null {
+  for (const m of registry.values()) {
+    for (const candidate of [m.default, m]) {
+      if (!candidate || typeof candidate !== 'object') continue;
+      for (const key of Object.keys(candidate)) {
+        try { if (filter(candidate[key])) return [candidate, candidate[key]]; } catch (_) {}
+      }
+    }
+  }
+  return null;
+}
+
 // Like findWebpackModuleByExport but returns the matching export value, not the module.
 // Mirrors Decky's findModuleExport pattern.
 export function findWebpackExport(

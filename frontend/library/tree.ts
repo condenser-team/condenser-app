@@ -1,4 +1,28 @@
 
+// Returns the React fiber instance (__reactFiber$*) attached to a DOM element.
+export function getReactInstance(element: Element): any {
+  const key = Object.keys(element).find(
+    k => k.startsWith('__reactFiber') || k.startsWith('__reactInternalInstance'),
+  );
+  return key ? (element as any)[key] : null;
+}
+
+// Wraps node[prop] in a plain object copy so patches don't mutate the original type.
+// Marks the wrapper with __condenserWrapped to avoid double-wrapping.
+export function wrapReactType(node: any, prop: string = 'type'): any {
+  if (node[prop]?.__condenserWrapped) return node[prop];
+  return (node[prop] = { ...node[prop], __condenserWrapped: true });
+}
+
+// Wraps node[prop] (a class component) in an anonymous subclass so patches target the
+// subclass without affecting any other render paths that share the original class.
+export function wrapReactClass(node: any, prop: string = 'type'): any {
+  if (node[prop]?.__condenserWrapped) return node[prop];
+  const cls = node[prop];
+  const wrapped = class extends cls { static __condenserWrapped = true; };
+  return (node[prop] = wrapped);
+}
+
 function findInTree(node: any, filter: (n: any) => boolean, walkKeys: string[]): any {
   if (!node || typeof node !== 'object') return null;
   if (filter(node)) return node;
