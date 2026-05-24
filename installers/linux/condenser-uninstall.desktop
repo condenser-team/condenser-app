@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Condenser (uninstall)
+Comment=Remove Condenser and its service from this computer
+Exec=x-terminal-emulator -e bash -c "/opt/condenser/uninstall.sh; echo; read -rp 'Press Enter to close...' _"
+Icon=system-software-install
+Terminal=false
+Categories=System;
+StartupNotify=false

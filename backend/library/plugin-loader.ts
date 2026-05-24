@@ -1,10 +1,13 @@
 import path from 'path';
 import { pathToFileURL } from 'url';
+import { createRequire } from 'module';
 import { existsSync, readdirSync } from 'fs';
 import WebSocket from 'ws';
 import { WsRouter, broadcastEvent } from './ws-router.js';
 import { pluginsDir } from './plugins.js';
 import { PluginConvention } from '../../shared/plugin.js';
+
+const IS_PROD = process.env.NODE_ENV === 'production';
 
 export interface BackendAPI {
   send(event: string, data?: Record<string, unknown>): void;
@@ -20,9 +23,10 @@ interface PluginBackend {
 
 export async function loadPlugins(router: WsRouter, clients: Set<WebSocket>): Promise<void> {
   if (!existsSync(pluginsDir)) return;
+  const backendFile = IS_PROD ? PluginConvention.BACKEND_BUILT : PluginConvention.BACKEND_FILE;
   for (const d of readdirSync(pluginsDir, { withFileTypes: true })) {
     if (!d.isDirectory()) continue;
-    const backendPath = path.join(pluginsDir, d.name, PluginConvention.BACKEND_FILE);
+    const backendPath = path.join(pluginsDir, d.name, backendFile);
     if (!existsSync(backendPath)) continue;
     await loadPlugin(d.name, backendPath, router, clients);
   }
@@ -34,7 +38,9 @@ async function loadPlugin(
   router: WsRouter,
   clients: Set<WebSocket>,
 ): Promise<void> {
-  const mod = await import(pathToFileURL(filePath).href) as PluginBackend;
+  const mod: PluginBackend = IS_PROD
+    ? createRequire(filePath)(filePath)
+    : await import(pathToFileURL(filePath).href);
 
   const api: BackendAPI = {
     send(event, data = {}) {

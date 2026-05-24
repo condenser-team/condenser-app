@@ -1,0 +1,10 @@
+#!/bin/bash
+# Stop and remove the Condenser LaunchAgent before uninstalling files.
+set -e
+
+LOGGED_IN_USER=$(stat -f "%Su" /dev/console 2>/dev/null || echo "$USER")
+PLIST="$HOME/Library/LaunchAgents/com.condenser.plist"
+USER_PLIST="/Users/$LOGGED_IN_USER/Library/LaunchAgents/com.condenser.plist"
+
+sudo -u "$LOGGED_IN_USER" launchctl unload -w "$USER_PLIST" 2>/dev/null || true
+rm -f "$USER_PLIST"

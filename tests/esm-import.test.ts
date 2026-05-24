@@ -18,7 +18,7 @@
 import * as http from 'http';
 import { test, expect, chromium } from '@playwright/test';
 import type { Browser, Page } from '@playwright/test';
-import { isSteamSharedContextTab } from '../backend/target.js';
+import { isSteamSharedContextTab } from '../shared/runtime.js';
 
 const STEAM_DEBUG_URL = 'http://localhost:8080';
 
@@ -67,7 +67,7 @@ test.afterAll(async () => {
   await new Promise<void>((resolve) => testServer?.close(() => resolve()));
 });
 
-// ─── Group 8: Native ESM import ──────────────────────────────────────────────
+// ─Group 8: Native ESM import─
 
 test.describe('Native ESM import', () => {
 

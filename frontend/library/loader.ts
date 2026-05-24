@@ -1,5 +1,7 @@
 
-import { renderComponent } from './qam.js';
+import { renderComponent as tabRender } from './tab.js';
+import { renderComponent as pageRender } from './page.js';
+import { renderComponent as persistentRender } from './persistent.js';
 import { MessageType, Route, WsEvent, Auth } from '../../shared/protocol.js';
 import { getCondenser } from './condenser.js';
 
@@ -35,14 +37,18 @@ export async function loadPlugin(id: string, url: string): Promise<void> {
     const mod = await import(/* @vite-ignore */ url);
     const ns = (condenser.components[id] ||= {});
     ns.component = {
-      target: mod.target,
       key: mod.key ?? id,
       title: mod.title,
       tab: mod.Tab,
       panel: mod.Panel,
+      route: mod.route,
+      page: mod.Page,
+      persistent: mod.Persistent,
     };
-    renderComponent(id);
-    ns.forceUpdate?.();
+    tabRender(id);
+    pageRender(id);
+    persistentRender(id);
+    ns.forceUpdaters?.forEach(fn => fn());
     console.info('[condenser] Loaded plugin', id);
   } catch (e: any) {
     console.error('[condenser] Failed to load plugin', id, e.message);

@@ -1,16 +1,21 @@
 import type * as ReactModule from 'react';
 
 export interface PluginComponent {
-  target: string;
   key: string;
   title?: string;
-  tab: (R: typeof ReactModule) => ReactModule.ReactNode;
-  panel: ReactModule.ComponentType<{ websocketUrl: string }>;
+  // QAM surface: plugin exports Tab + Panel
+  tab?: (R: typeof ReactModule) => ReactModule.ReactNode;
+  panel?: ReactModule.ComponentType<{ websocketUrl: string }>;
+  // BPM surface: plugin exports Page + route
+  route?: string;
+  page?: ReactModule.ComponentType<{ websocketUrl: string }>;
+  // Persistent surface: plugin exports Persistent (rendered on every page)
+  persistent?: ReactModule.ComponentType<{ websocketUrl: string }>;
 }
 
 export interface PluginNamespace {
   component?: PluginComponent;
-  forceUpdate?: () => void;
+  forceUpdaters?: Set<() => void>;
 }
 
 export interface CondenserCore {
@@ -23,8 +28,10 @@ export interface CondenserCore {
   ReactDOM: { createRoot: (el: Element) => { render: (node: ReactModule.ReactNode) => void } };
   webpackRegistry: Map<string, unknown>;
   quickAccessMenuRenderer: { type: unknown } | null;
-  patched: boolean;
+  tabPatched: boolean;
   patchedTypeCache: Map<unknown, unknown>;
+  router: { Navigate: (path: string) => void } | null;
+  pagePatched: boolean;
   booted: boolean;
 }
 
@@ -40,9 +47,18 @@ export interface CondenserNamespace {
   steam: {
     discoverSteamContext: () => string | null;
   };
-  qam: {
+  tab: {
     renderComponent: (id: string) => void;
-    activateQuickAccessMenu: () => void;
+    activateTab: () => void;
+  };
+  page: {
+    renderComponent: (id: string) => void;
+    activatePage: () => void;
+    showPage: (path: string) => void;
+    closePage: () => void;
+  };
+  persistent: {
+    renderComponent: (id: string) => void;
   };
   tree: {
     findInFiberTree: (node: unknown, filter: (n: unknown) => boolean) => unknown;

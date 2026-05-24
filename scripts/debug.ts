@@ -19,13 +19,13 @@
 import { CdpSession } from '../shared/cdp.js';
 import { isSteamSharedContextTab } from '../shared/runtime.js';
 
-// ─── Configuration ─────────────────────────────────────────────────────────────
+// ─Configuration
 
 const DEBUG_PORTS = [8080, 9222];
 const CONNECT_TIMEOUT_MS = 5_000;
 const EVAL_TIMEOUT_MS = 10_000;
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
+// ─Types
 
 interface CdpTarget {
   id: string;
@@ -35,7 +35,7 @@ interface CdpTarget {
   webSocketDebuggerUrl: string;
 }
 
-// ─── Steam / CDP helpers ───────────────────────────────────────────────────────
+// ─Steam / CDP helpers
 
 async function findDebugEndpoint(): Promise<string> {
   for (const port of DEBUG_PORTS) {
@@ -88,7 +88,7 @@ async function evaluate<T = any>(session: CdpSession, expression: string): Promi
   return result?.result?.value as T;
 }
 
-// ─── Commands ──────────────────────────────────────────────────────────────────
+// ─Commands─
 
 async function cmdStatus(): Promise<void> {
   const endpoint = await findDebugEndpoint();
@@ -100,7 +100,7 @@ async function cmdStatus(): Promise<void> {
     const state = await evaluate<any>(session, `JSON.stringify({
       booted:       !!(window.__condenser?.core?.booted),
       reactVersion: window.__condenser?.core?.React?.version ?? null,
-      patched:      !!(window.__condenser?.core?.patched),
+      tabPatched:   !!(window.__condenser?.core?.tabPatched),
       wsUrl:        window.__condenser?.core?.url ?? null,
       plugins:      Object.keys(window.__condenser?.components ?? {}),
       hasQAM:       !!(window.__condenser?.core?.quickAccessMenuRenderer),
@@ -112,7 +112,7 @@ async function cmdStatus(): Promise<void> {
     console.log('');
     console.log('Condenser booted:', s.booted ? '✓' : '✗');
     console.log('React version:   ', s.reactVersion ?? '(not found)');
-    console.log('QAM patched:     ', s.patched ? '✓' : '✗');
+    console.log('Tab patched:     ', s.tabPatched ? '✓' : '✗');
     console.log('Backend WS:      ', s.wsUrl ?? '(not set)');
     console.log('Plugins loaded:  ', s.plugins.length ? s.plugins.join(', ') : '(none)');
     console.log('QAM renderer:    ', s.hasQAM ? '✓' : '✗');
@@ -222,7 +222,8 @@ async function cmdCondenser(): Promise<void> {
     const raw = await evaluate<string>(session, `JSON.stringify({
       booted:            !!(window.__condenser?.core?.booted),
       setup:             !!(window.__condenser?.core?.setup),
-      patched:           !!(window.__condenser?.core?.patched),
+      tabPatched:        !!(window.__condenser?.core?.tabPatched),
+      pagePatched:       !!(window.__condenser?.core?.pagePatched),
       csrfToken:         window.__condenser?.core?.csrfToken ? '(set)' : '(not set)',
       wsUrl:             window.__condenser?.core?.url ?? null,
       reactVersion:      window.__condenser?.core?.React?.version ?? null,
@@ -233,7 +234,6 @@ async function cmdCondenser(): Promise<void> {
       components: Object.fromEntries(
         Object.entries(window.__condenser?.components ?? {}).map(([id, ns]) => [id, {
           hasComponent:    !!(ns?.component),
-          target:          ns?.component?.target ?? null,
           key:             ns?.component?.key ?? null,
           hasPanel:        !!(ns?.component?.panel),
           hasForceUpdate:  typeof ns?.forceUpdate === 'function',
@@ -451,7 +451,7 @@ async function cmdWebpack(pattern: string): Promise<void> {
   }
 }
 
-// ─── CLI entry ─────────────────────────────────────────────────────────────────
+// ─CLI entry
 
 function parseArgs(argv: string[]): { command: string; args: string[]; target?: string } {
   const args = argv.slice(2);
@@ -474,7 +474,7 @@ async function main(): Promise<void> {
     errors:    () => cmdErrors(target),
     condenser: () => cmdCondenser(),
     react:     () => cmdReact(),
-    render:    () => cmdRender(args[0] ?? 'condenser-tab'),
+    render:    () => cmdRender(args[0] ?? 'condenser-system'),
     styles:    () => cmdStyles(args[0] ?? 'body', target),
     webpack:   () => cmdWebpack(args[0] ?? ''),
   };

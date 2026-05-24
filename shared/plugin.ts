@@ -2,14 +2,19 @@ import { existsSync, readdirSync } from 'fs';
 import { join } from 'path';
 
 export const PluginConvention = {
-  FRONTEND_FILE: 'frontend.tsx',
-  BACKEND_FILE:  'backend.ts',
-  URL_PREFIX:    '/plugins/',
+  FRONTEND_FILE:  'frontend.tsx',
+  FRONTEND_BUILT: 'frontend.js',
+  BACKEND_FILE:   'backend.ts',
+  BACKEND_BUILT:  'backend.cjs',
+  URL_PREFIX:     '/plugins/',
 } as const;
 
 export function listPluginIds(pluginsDir: string): string[] {
   if (!existsSync(pluginsDir)) return [];
   return readdirSync(pluginsDir, { withFileTypes: true })
-    .filter(d => d.isDirectory() && existsSync(join(pluginsDir, d.name, PluginConvention.FRONTEND_FILE)))
+    .filter(d => d.isDirectory() && (
+      existsSync(join(pluginsDir, d.name, PluginConvention.FRONTEND_FILE)) ||
+      existsSync(join(pluginsDir, d.name, PluginConvention.FRONTEND_BUILT))
+    ))
     .map(d => d.name);
 }
