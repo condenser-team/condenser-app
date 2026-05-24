@@ -18,7 +18,7 @@
 import * as http from 'http';
 import { test, expect, chromium } from '@playwright/test';
 import type { Browser, Page } from '@playwright/test';
-import { isSteamSharedContextTab } from '../backend/target.js';
+import { isSteamSharedContextTab } from '../shared/runtime.js';
 
 const STEAM_DEBUG_URL = 'http://localhost:8080';
 

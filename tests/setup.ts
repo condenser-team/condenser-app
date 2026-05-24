@@ -13,7 +13,7 @@ import { spawn } from 'child_process';
 import { existsSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
-import { isSteamSharedContextTab } from '../backend/target.js';
+import { isSteamSharedContextTab } from '../shared/runtime.js';
 
 const STEAM_DEBUG_URL = 'http://localhost:8080';
 const POLL_MS = 1_000;
