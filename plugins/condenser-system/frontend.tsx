@@ -1,6 +1,12 @@
 /// <reference lib="dom" />
 import React, { useState, useEffect } from 'react';
-import { useSend, navigate, back } from 'condenser:api';
+import {
+  useSend, navigate, back,
+  openQAM,
+  showModal, showContextMenu,
+  Focusable, SidebarNavigation,
+  Menu, MenuItem,
+} from 'condenser:api';
 
 export const key   = 'condenser-system';
 export const title = 'Condenser';
@@ -17,19 +23,36 @@ export function Panel() {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
-    send('getCount').then((result: any) => setCount(result.count));
+    send('getCount').then((r: any) => setCount(r.count));
   }, []);
 
   const handleClick = async () => {
-    const result = await send('click') as { count: number };
-    setCount(result.count);
+    const r = await send('click') as { count: number };
+    setCount(r.count);
   };
 
-  const handleNavigate = () => navigate('/condenser/system');
+  const handleModal = () => showModal(
+    React.createElement('p', null, 'Opened via showModal() from condenser:api.'),
+    undefined,
+    { strTitle: 'Modal component' },
+  );
+
+  const handleContextMenu = (e: any) => {
+    e.preventDefault();
+    showContextMenu(
+      React.createElement(Menu, { label: 'Condenser' },
+        React.createElement(MenuItem, { onClick: () => navigate('/condenser/system') }, 'Open Page'),
+        React.createElement(MenuItem, { onClick: openQAM }, 'Open QAM'),
+        React.createElement(MenuItem, { onClick: handleModal }, 'Show Modal'),
+      ),
+      e.currentTarget,
+    );
+  };
 
   return React.createElement(
-    'div',
-    { style: { padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' } },
+    // Focusable enables controller d-pad navigation between buttons
+    Focusable,
+    { 'flow-children': 'column', style: { display: 'flex', flexDirection: 'column', gap: '8px', padding: '16px' } },
     React.createElement(
       'button',
       { className: 'DialogButton _DialogLayout Secondary', onClick: handleClick },
@@ -37,8 +60,13 @@ export function Panel() {
     ),
     React.createElement(
       'button',
-      { className: 'DialogButton _DialogLayout Secondary', onClick: handleNavigate },
+      { className: 'DialogButton _DialogLayout Secondary', onClick: () => navigate('/condenser/system') },
       'Open Page',
+    ),
+    React.createElement(
+      'button',
+      { className: 'DialogButton _DialogLayout Secondary', onClick: handleModal, onContextMenu: handleContextMenu },
+      'Show Modal',
     ),
   );
 }
@@ -46,14 +74,12 @@ export function Panel() {
 // BPM surface
 export const route = '/condenser/system';
 
-export function Page(_: { websocketUrl: string }) {
-  const send = useSend('condenser-system');
+function SystemInfoContent({ send }: { send: (action: string, data?: unknown) => Promise<unknown> }) {
   const [info, setInfo] = useState<{ platform: string; uptime: number; memory: number } | null>(null);
 
   useEffect(() => {
-    console.info('[condenser-system] Page mounted');
     send('getInfo')
-      .then((result: any) => setInfo(result))
+      .then((r: any) => setInfo(r))
       .catch((err: any) => console.error('[condenser-system] getInfo failed:', err));
   }, []);
 
@@ -61,44 +87,153 @@ export function Page(_: { websocketUrl: string }) {
 
   return React.createElement(
     'div',
-    { style: { padding: '24px', color: 'white', fontFamily: 'sans-serif' } },
-    React.createElement('h2', { style: { marginBottom: '16px' } }, 'Page component'),
+    { style: { padding: '16px', color: 'white', fontFamily: 'sans-serif', display: 'flex', flexDirection: 'column', gap: '8px' } },
     info
       ? React.createElement(
-          'div',
-          { style: { display: 'flex', flexDirection: 'column', gap: '8px' } },
+          React.Fragment,
+          null,
           React.createElement('p', null, `Platform: ${info.platform}`),
           React.createElement('p', null, `Uptime: ${fmt(info.uptime)}`),
           React.createElement('p', null, `Free memory: ${Math.round(info.memory / 1024 / 1024)} MB`),
         )
       : React.createElement('p', null, 'Loading…'),
+  );
+}
+
+function AboutContent() {
+  return React.createElement(
+    'div',
+    { style: { padding: '16px', color: 'white', fontFamily: 'sans-serif', display: 'flex', flexDirection: 'column', gap: '8px' } },
+    React.createElement('p', null, 'condenser-system'),
     React.createElement(
-      'button',
-      { className: 'DialogButton _DialogLayout Secondary', style: { marginBottom: '16px' }, onClick: back },
-      '← Back',
+      'p',
+      { style: { opacity: 0.7, fontSize: '13px' } },
+      'Built-in Condenser plugin — demonstrates Tab, Panel, Page, and Persistent surfaces together with condenser:api features: SidebarNavigation, Focusable, showModal, showContextMenu, openQAM.',
     ),
   );
 }
 
-// Persistent surface — always rendered, regardless of active page
-export function Persistent(_: { websocketUrl: string }) {
+export function Page(_: { websocketUrl: string }) {
+  const send = useSend('condenser-system');
+
+  const pages = [
+    { title: 'System', content: React.createElement(SystemInfoContent, { send }) },
+    { title: 'About', content: React.createElement(AboutContent, null) },
+  ];
+
   return React.createElement(
     'div',
-    {
-      id: 'condenser-global-indicator',
-      style: {
-        position: 'fixed',
-        top: '60px',
-        right: '32px',
-        background: 'rgba(0,0,0,0.6)',
-        color: '#4fc3f7',
-        fontSize: '10px',
-        padding: '2px 6px',
-        borderRadius: '4px',
-        pointerEvents: 'none',
-        zIndex: 9999,
+    { style: { display: 'flex', flexDirection: 'column', height: '100%' } },
+    React.createElement(
+      'button',
+      {
+        className: 'DialogButton _DialogLayout Secondary',
+        style: { margin: '8px 16px', alignSelf: 'flex-start' },
+        onClick: back,
       },
-    },
-    'Global component',
+      '← Back',
+    ),
+    // SidebarNavigation: collapsible left-hand nav across sub-pages
+    React.createElement(SidebarNavigation, { title: 'Condenser', pages }),
+  );
+}
+
+// Persistent surface — always rendered, regardless of active page.
+// Owns the modal overlay state and registers condenser.core.showModal so any plugin
+// can trigger a modal by calling showModal() from condenser:api.
+export function Persistent(_: { websocketUrl: string }) {
+  const [modal, setModal] = useState<{ content: any; title?: string } | null>(null);
+
+  useEffect(() => {
+    (window as any).__condenser.core.showModal = (content: any, title?: string) =>
+      setModal({ content, title });
+    return () => { (window as any).__condenser.core.showModal = undefined; };
+  }, []);
+
+  const closeModal = () => setModal(null);
+
+  return React.createElement(
+    React.Fragment,
+    null,
+    // Always-visible QAM opener button
+    React.createElement(
+      'button',
+      {
+        id: 'condenser-global-indicator',
+        onClick: openQAM,
+        title: 'Open Quick Access Menu',
+        style: {
+          position: 'fixed',
+          top: '60px',
+          right: '32px',
+          background: 'rgba(0,0,0,0.7)',
+          color: '#4fc3f7',
+          fontSize: '11px',
+          fontWeight: 'bold',
+          padding: '4px 10px',
+          borderRadius: '6px',
+          border: '1px solid rgba(79,195,247,0.4)',
+          cursor: 'pointer',
+          zIndex: 9999,
+          letterSpacing: '0.5px',
+        },
+      },
+      '☰ QAM',
+    ),
+    // Modal overlay — rendered inside BPM's React tree so it's visible in-window
+    modal ? React.createElement(
+      'div',
+      {
+        style: {
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          zIndex: 100000,
+          background: 'rgba(0,0,0,0.85)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        onClick: closeModal,
+      },
+      React.createElement(
+        'div',
+        {
+          style: {
+            background: '#1a1d23',
+            borderRadius: '8px',
+            padding: '24px',
+            minWidth: '320px',
+            maxWidth: '600px',
+            color: 'white',
+            fontFamily: 'sans-serif',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+          },
+          onClick: (e: any) => e.stopPropagation(),
+        },
+        modal.title ? React.createElement(
+          'h3',
+          { style: { marginBottom: '12px', fontSize: '18px' } },
+          modal.title,
+        ) : null,
+        modal.content,
+        React.createElement(
+          'button',
+          {
+            style: {
+              marginTop: '16px',
+              padding: '8px 20px',
+              background: '#4fc3f7',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              color: '#000',
+              fontWeight: 'bold',
+            },
+            onClick: closeModal,
+          },
+          'Close',
+        ),
+      ),
+    ) : null,
   );
 }
