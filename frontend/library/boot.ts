@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 
 import { getCondenser } from './condenser.js';
+import { initToaster } from './toast.js';
 
 export function installPreamble(): void {
   (window as any).__vite_plugin_react_preamble_installed__ = true;
@@ -21,6 +22,7 @@ export function boot(): void {
     console.error('[condenser] Context error:', contextError);
   } else {
     condenser.plugins.initPluginLoader();
+    initToaster();
   }
 
   if (import.meta.hot) {

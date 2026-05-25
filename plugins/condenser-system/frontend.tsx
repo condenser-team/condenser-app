@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import {
   useSend, navigate, back,
   openQAM,
-  showModal, showContextMenu,
+  showModal, showContextMenu, showToast,
   Focusable, SidebarNavigation,
   Menu, MenuItem,
 } from 'condenser:api';
@@ -30,6 +30,12 @@ export function Panel() {
     const r = await send('click') as { count: number };
     setCount(r.count);
   };
+
+  const handleToast = () => showToast({
+    title: 'Condenser',
+    body: 'showToast() called from condenser:api.',
+    duration: 4000,
+  });
 
   const handleModal = () => showModal(
     React.createElement('p', null, 'Opened via showModal() from condenser:api.'),
@@ -67,6 +73,11 @@ export function Panel() {
       'button',
       { className: 'DialogButton _DialogLayout Secondary', onClick: handleModal, onContextMenu: handleContextMenu },
       'Show Modal',
+    ),
+    React.createElement(
+      'button',
+      { className: 'DialogButton _DialogLayout Secondary', onClick: handleToast },
+      'Show Toast',
     ),
   );
 }
@@ -178,7 +189,7 @@ export function Persistent(_: { websocketUrl: string }) {
           letterSpacing: '0.5px',
         },
       },
-      '☰ QAM',
+      'Persistent',
     ),
     // Modal overlay — rendered inside BPM's React tree so it's visible in-window
     modal ? React.createElement(
