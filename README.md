@@ -12,8 +12,10 @@ Condenser allows you to customize Steam Big Picture Mode and SteamOS using plugi
 
 ### What Condenser does
 
-- Adds a **Condenser tab** to Steam's Quick Access Menu (the ☰ button in-game and in Big Picture Mode)
-- Lets plugins add pages to **Big Picture Mode and SteamOS** interfaces
+- Adds a **Tab and Panel** to Steam's Quick Access Menu (the ☰ button in-game and in Big Picture Mode)
+- Lets plugins add **Pages** to Big Picture Mode and SteamOS navigation
+- Lets plugins render **Persistent** (always-on) overlays across all Big Picture pages
+- Lets plugins trigger native **Toast notifications** (with sound) visible over the QAM
 - Plugins can show information, controls, or anything else a web page can render
 - Works on **Windows, macOS, Linux desktop, and Steam Deck**
 
@@ -67,8 +69,11 @@ Steam (Chromium)
 └── SharedJSContext ← CDP injection point
     └── condenser shim (frontend/index.ts)
         ├── steam.ts      discover React, webpack registry, router
-        ├── qam.ts        patch Quick Access Menu — add tabs and panels
-        ├── bigpicture.ts portal overlay for Big Picture / SteamOS pages
+        ├── tab.ts        patch Quick Access Menu — add Tab and Panel surfaces
+        ├── page.ts       inject Page routes into Big Picture / SteamOS router
+        ├── persistent.ts inject Persistent components (always rendered)
+        ├── fc.ts         FC trampoline — convert function components to patchable classes
+        ├── toast.ts      native toast notifications via ValveToastRenderer + NotificationStore
         └── loader.ts     load plugin frontends, route WS calls to backend
 
 Condenser server (Node.js / backend/)
@@ -179,9 +184,19 @@ export async function getInfo() {
 }
 ```
 
-#### Quick Access Menu plugin (`frontend.tsx`)
+#### Plugin surfaces
 
-Export `target`, `title`, an icon `Tab` component, and a `Panel` component.
+Condenser uses **presence-based detection**: whichever surfaces your `frontend.tsx` exports are automatically activated. There is no `target` discriminator — just export the components you need.
+
+| Export | Surface | When rendered |
+|--------|---------|---------------|
+| `Tab` + `Panel` | Quick Access Menu | When the player opens the ☰ menu |
+| `route` + `Page` | Big Picture page | When the player navigates to your route |
+| `Persistent` | Always-on overlay | Rendered on every Big Picture page |
+
+A single plugin can export any combination of surfaces.
+
+#### Quick Access Menu (`Tab` + `Panel`)
 
 ```typescript
 // plugins/my-plugin/frontend.tsx
@@ -189,8 +204,8 @@ Export `target`, `title`, an icon `Tab` component, and a `Panel` component.
 import React, { useEffect, useState } from 'react';
 import { useSend } from 'condenser:api';
 
-export const target = 'quick-access-menu';
-export const title  = 'My Plugin';
+export const key   = 'my-plugin';
+export const title = 'My Plugin';
 
 export const Tab = () => React.createElement('span', null, '⚡');
 
@@ -208,9 +223,9 @@ export function Panel() {
 }
 ```
 
-#### Big Picture / SteamOS page plugin (`frontend.tsx`)
+#### Big Picture / SteamOS page (`route` + `Page`)
 
-Export `target`, `route`, and a `Page` component. Use `navigate` to open the page and `back` to close it.
+Export `route` and a `Page` component. Use `navigate` to open the page and `back` to close it.
 
 ```typescript
 // plugins/my-plugin/frontend.tsx
@@ -218,8 +233,7 @@ Export `target`, `route`, and a `Page` component. Use `navigate` to open the pag
 import React from 'react';
 import { back } from 'condenser:api';
 
-export const target = 'big-picture';
-export const route  = '/my-plugin/home';
+export const route = '/my-plugin/home';
 
 export function Page() {
   return React.createElement('div', { style: { padding: 24, color: 'white' } },
@@ -229,21 +243,86 @@ export function Page() {
 }
 ```
 
-To navigate to the page from a QAM panel:
+To navigate to the page from a Panel:
 
 ```typescript
 import { navigate } from 'condenser:api';
 navigate('/my-plugin/home');
 ```
 
+#### Always-on overlay (`Persistent`)
+
+A `Persistent` component renders on every Big Picture page, outside any route guard. Useful for HUD elements, notifications, or indicators.
+
+```typescript
+// plugins/my-plugin/frontend.tsx
+/// <reference lib="dom" />
+import React from 'react';
+
+export function Persistent() {
+  return React.createElement('div', {
+    style: {
+      position: 'fixed', top: 60, right: 32,
+      background: 'rgba(0,0,0,0.6)', color: 'white',
+      fontSize: 12, padding: '2px 8px', borderRadius: 4,
+      pointerEvents: 'none', zIndex: 9999,
+    },
+  }, 'My Plugin active');
+}
+```
+
 #### Plugin API (`condenser:api`)
+
+**Hooks**
 
 | Export | Description |
 |--------|-------------|
 | `useSend(pluginId)` | Returns a `send(action, data?)` function that calls your backend |
 | `useMessage(pluginId, event, handler)` | Subscribe to server-push events from your backend |
+
+**Navigation**
+
+| Export | Description |
+|--------|-------------|
 | `navigate(path)` | Open a Big Picture page by route |
 | `back()` | Close the current Big Picture page |
+| `openQAM()` | Open the Quick Access Menu |
+| `openSideMenu()` | Open the Steam side menu |
+| `closeSideMenus()` | Close all side menus |
+
+**Imperative UI**
+
+| Export | Description |
+|--------|-------------|
+| `showToast({ title, body?, duration?, sound?, playSound?, critical? })` | Show a native Steam toast notification with sound, visible over the QAM |
+| `showModal(content, parent?, { strTitle? })` | Show a modal dialog using Steam's modal system |
+| `showContextMenu(children, parent?)` | Open a Steam-native context menu anchored to an element |
+
+**Steam UI components**
+
+| Export | Description |
+|--------|-------------|
+| `Focusable` | Enables gamepad d-pad navigation between child elements |
+| `SidebarNavigation` | Collapsible left-hand nav across sub-pages (for use in BPM pages) |
+| `Menu` | Container for context menu items |
+| `MenuItem` | Individual item inside a `Menu` |
+
+#### Toast notifications
+
+```typescript
+import { showToast } from 'condenser:api';
+
+// Minimal — title only
+showToast({ title: 'My Plugin' });
+
+// With body and custom duration
+showToast({ title: 'Download complete', body: 'my-mod-v1.2.zip', duration: 4000 });
+
+// Silent
+showToast({ title: 'Background sync', playSound: false });
+```
+
+Toasts appear using Steam's native `ValveToastRenderer` and `NotificationStore`, so they render over the QAM, play Steam's notification sound, and animate with the same timing as system notifications.
 
 ---
 

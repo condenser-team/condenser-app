@@ -1,5 +1,7 @@
 import { getCondenser } from './condenser.js';
 import { findWebpackExport, findModuleDetailsByExport } from './steam.js';
+export { showToast } from './toast.js';
+export type { ToastOptions } from './toast.js';
 
 // ---- Internal helpers ----
 
