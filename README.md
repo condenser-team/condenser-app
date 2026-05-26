@@ -99,8 +99,14 @@ Condenser server (Node.js / backend/)
   # macOS
   brew install mkcert
 
-  # Linux
-  apt install libnss3-tools && curl -Lo mkcert https://github.com/FiloSottile/mkcert/releases/latest/download/mkcert-v*-linux-amd64 && chmod +x mkcert && sudo mv mkcert /usr/local/bin/
+  # Linux (Debian/Ubuntu/Pop!_OS/Mint)
+  sudo apt install -y libnss3-tools mkcert
+
+  # Linux (Fedora)
+  sudo dnf install -y nss-tools mkcert
+
+  # Linux (Arch)
+  sudo pacman -S --noconfirm mkcert nss
 
   # Windows
   choco install mkcert
@@ -110,6 +116,7 @@ Condenser server (Node.js / backend/)
 
 ```bash
 npm install
+npm run check        # verify prerequisites (node, mkcert, libnss3-tools)
 npm run setup        # generate and trust local HTTPS/WSS certificates
 ```
 
@@ -120,6 +127,17 @@ npm run setup:remote
 ```
 
 ### Development workflow
+
+The easiest way to start everything is one of the combined scripts, which launch the dev server and Steam together, track PIDs, and tear down both on Ctrl+C:
+
+```bash
+npm run dev:game             # server + Steam Big Picture
+npm run dev:desktop          # server + Steam desktop mode
+npm run dev:game:remote      # server on network IP + Steam BPM (for Deck)
+npm run dev:desktop:remote   # server on network IP + Steam desktop
+```
+
+Or run the pieces separately if you prefer:
 
 ```bash
 npm run dev          # start Vite + backend with hot reload (local mode)
