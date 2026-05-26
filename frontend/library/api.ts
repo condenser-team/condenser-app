@@ -2,6 +2,11 @@ import { getCondenser } from './condenser.js';
 import { findWebpackExport, findModuleDetailsByExport } from './steam.js';
 export { showToast } from './toast.js';
 export type { ToastOptions } from './toast.js';
+export { createReactTreePatcher } from './treepatcher.js';
+export type { NodeStep, PatchHandler } from './treepatcher.js';
+export { onUIModeChanged, getUIMode, UIMode } from './events.js';
+export type { UIMode as UIModeValue } from './events.js';
+export { useQAMVisible } from './tab.js';
 
 // ---- Internal helpers ----
 

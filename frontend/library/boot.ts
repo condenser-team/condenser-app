@@ -2,6 +2,7 @@
 
 import { getCondenser } from './condenser.js';
 import { initToaster } from './toast.js';
+import { initErrorBoundary } from './errorboundary.js';
 
 export function installPreamble(): void {
   (window as any).__vite_plugin_react_preamble_installed__ = true;
@@ -23,6 +24,7 @@ export function boot(): void {
   } else {
     condenser.plugins.initPluginLoader();
     initToaster();
+    initErrorBoundary();
   }
 
   if (import.meta.hot) {
