@@ -3,6 +3,40 @@ import { findInElementTree, findInFiberTree, getReactFiberRoot } from './tree.js
 import { getCondenser } from './condenser.js';
 import { wrapReturnValue } from './patch.js';
 
+// ---- QAM visibility context ----
+
+let _qamVisibleContext: any = null;
+
+function getQAMVisibleContext(): any {
+  if (_qamVisibleContext) return _qamVisibleContext;
+  const React = getCondenser().core.React!;
+  _qamVisibleContext = React.createContext(false);
+  return _qamVisibleContext;
+}
+
+// Wrap each plugin panel so it can expose QAM open/close state to descendant components.
+// Mirrors Decky's QuickAccessVisibleStateProvider — sets tab.qAMVisibilitySetter so the
+// appendTab render loop can signal visibility changes without needing a second context.
+function QAMVisibilityProvider(props: { tab: any; children: any }): any {
+  const React = getCondenser().core.React!;
+  const [visible, setVisible] = React.useState(props.tab.initialVisibility ?? false);
+  // Assign stable setter so the render loop can update visibility without re-mounting.
+  props.tab.qAMVisibilitySetter = setVisible;
+  return React.createElement(getQAMVisibleContext().Provider, { value: visible }, props.children);
+}
+
+/**
+ * Returns true when the QAM is open (the containing panel is visible to the user).
+ * Must be called inside a plugin Panel component — the context is provided by condenser's
+ * QAMVisibilityProvider wrapper that surrounds every registered panel.
+ */
+export function useQAMVisible(): boolean {
+  const React = getCondenser().core.React!;
+  return React.useContext(getQAMVisibleContext());
+}
+
+// ---- Tab injection ----
+
 export function renderComponent(id: string): void {
   const condenser = getCondenser();
   const def = condenser.components[id]?.component;
@@ -73,7 +107,13 @@ export function appendTab(): (args: any[], returnValue: any) => any {
     for (const [id, ns] of Object.entries(condenser.components as Record<string, any>)) {
       const def = ns?.component;
       if (!def?.tab) continue;
-      if (tabsNode.props.tabs.some((t: any) => t.key === def.key)) continue;
+
+      // Notify existing condenser tabs that the QAM is open.
+      const existing = tabsNode.props.tabs.find((t: any) => t.key === def.key);
+      if (existing) {
+        existing.qAMVisibilitySetter?.(true);
+        continue;
+      }
 
       if (!titleClassName) {
         const nativeTitleType = tabsNode.props.tabs[0]?.title?.type;
@@ -81,15 +121,21 @@ export function appendTab(): (args: any[], returnValue: any) => any {
         titleClassName = sample?.props?.className ?? '';
       }
 
-      tabsNode.props.tabs.push({
+      // Build the tab object first so QAMVisibilityProvider can hold a reference to it.
+      const tab: any = {
         key: def.key,
         tab: def.tab(React),
-        initialVisibility: false,
-        panel: React.createElement(InjectedTabPanel, { id }),
+        initialVisibility: true,
         title: titleClassName
           ? React.createElement('div', { className: titleClassName }, def.title ?? def.key)
           : def.tab(React),
-      });
+      };
+      tab.panel = React.createElement(
+        QAMVisibilityProvider,
+        { tab },
+        React.createElement(InjectedTabPanel, { id }),
+      );
+      tabsNode.props.tabs.push(tab);
     }
 
     return returnValue;

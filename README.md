@@ -10,20 +10,15 @@ Condenser allows you to customize Steam Big Picture Mode and SteamOS using plugi
 
 ## User Guide
 
-### What Condenser does
+### Introduction
 
-- Adds a **Tab and Panel** to Steam's Quick Access Menu (the ☰ button in-game and in Big Picture Mode)
-- Lets plugins add **Pages** to Big Picture Mode and SteamOS navigation
-- Lets plugins render **Persistent** (always-on) overlays across all Big Picture pages
-- Lets plugins trigger native **Toast notifications** (with sound) visible over the QAM
-- Plugins can show information, controls, or anything else a web page can render
-- Works on **Windows, macOS, Linux desktop, and Steam Deck**
+Condenser is a plugin loader for Steam Big Picture Mode and SteamOS. Install it on your PC to extend the Steam interface with community-made plugins — adding new features that Steam doesn't offer out-of-the-box.
 
 ### Download and install
 
 Download the correct installer for your system from the [GitHub Releases](../../releases) page.
 
-The installer starts the Condenser service automatically. Open Steam in development mode  and press the **☰** button to see the Condenser tab.
+The installer starts the Condenser service automatically. Open Steam in development mode and press the **☰** button to see the Condenser tab.
 
 ### Uninstall
 
@@ -50,6 +45,14 @@ The installer starts the Condenser service automatically. Open Steam in developm
 | **Setup** | `npm install` | Linux VM required | C++ build tools |
 | **Plugin size** | 2 files, ~30 lines | Template-based | Template + build |
 
+### Features
+
+- **Tabs and Panels** to Steam's Quick Access Menu (the ☰ button in-game and in Big Picture Mode)
+- **Pages** to Big Picture Mode and SteamOS navigation
+- **Persistent** (always-on) overlays across all Big Picture pages
+- **Toast notifications** (with sound) visible over the Quick Access Menu
+- Plugins can show information, controls, or anything else a web page can render
+- Works on **Windows, macOS, Linux desktop, and Steam Deck**
 
 ### How it works
 
