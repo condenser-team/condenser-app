@@ -16,6 +16,7 @@
   },
   "include": [
     "backend/**/*",
+    "plugins/**/*.ts",
     "shared/**/*",
     "scripts/**/*"
   ],

@@ -1,5 +1,5 @@
 import { getCondenser } from './condenser.js';
-import { findWebpackExport, findModuleDetailsByExport } from './steam.js';
+import { findWebpackExport, findModuleDetailsByExport, findWebpackModuleByExport } from './steam.js';
 export { showToast } from './toast.js';
 export type { ToastOptions } from './toast.js';
 export { createReactTreePatcher } from './treepatcher.js';
@@ -99,6 +99,28 @@ function lazySidebarNavigation(): any {
 
 export function SidebarNavigation(props: any): any {
   const C = lazySidebarNavigation();
+  if (!C) return null;
+  return getCondenser().core.React!.createElement(C, props);
+}
+
+// Native Steam tab bar — props: { tabs, activeTab, onShowTab, autoFocusContents? }
+// Each tab: { id: string; title: string; content: ReactNode; renderTabAddon?: () => ReactNode }
+let _Tabs: any = null;
+function lazyTabs(): any {
+  if (_Tabs) return _Tabs;
+  const reg = getRegistry();
+  if (!reg) return null;
+  const mod = findWebpackModuleByExport(reg, (e: any) =>
+    e?.toString?.().includes('.TabRowTabs') && e?.toString?.().includes('activeTab:'),
+  );
+  if (mod) {
+    _Tabs = Object.values(mod as object).find((e: any) => e?.type?.toString?.().includes('(function()')) ?? null;
+  }
+  return _Tabs;
+}
+
+export function Tabs(props: any): any {
+  const C = lazyTabs();
   if (!C) return null;
   return getCondenser().core.React!.createElement(C, props);
 }
