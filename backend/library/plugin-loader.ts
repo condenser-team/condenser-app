@@ -1,6 +1,5 @@
 import path from 'path';
 import { pathToFileURL } from 'url';
-import { createRequire } from 'module';
 import { existsSync, readdirSync } from 'fs';
 import WebSocket from 'ws';
 import { WsRouter, broadcastEvent } from './ws-router.js';
@@ -49,9 +48,7 @@ async function loadPlugin(
   router: WsRouter,
   clients: Set<WebSocket>,
 ): Promise<void> {
-  const mod: PluginBackend = IS_PROD
-    ? createRequire(filePath)(filePath)
-    : await import(pathToFileURL(filePath).href);
+  const mod: PluginBackend = await import(pathToFileURL(filePath).href);
 
   const api: BackendAPI = {
     send(event, data = {}) {

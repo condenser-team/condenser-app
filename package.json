@@ -3,13 +3,16 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Turns Steam into liquid",
-  "main": "dist/index.js",
+  "main": "dist/bundle.mjs",
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "scripts": {
     "build": "npm run build:frontend && npm run build:plugins && npm run build:backend",
     "build:frontend": "NODE_ENV=production vite build --config frontend/vite.config.ts",
-    "build:backend": "esbuild backend/index.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/bundle.cjs --define:process.env.NODE_ENV='\"production\"' --external:bufferutil --external:utf-8-validate --external:fsevents",
+    "build:backend": "esbuild backend/index.ts --bundle --platform=node --target=node24 --format=esm --outfile=dist/bundle.mjs --define:process.env.NODE_ENV='\"production\"' --external:bufferutil --external:utf-8-validate --external:fsevents",
     "build:plugins": "node scripts/build-plugins.mjs",
-    "build:binaries": "npm run build && node scripts/pkg.mjs",
+    "build:binaries": "npm run build && node scripts/sea.mjs",
     "build:installer": "node scripts/installer.mjs",
     "build:release": "npm run build:binaries && npm run build:installer",
     "dev": "NODE_ENV=development concurrently \"vite --config frontend/vite.config.ts -- --mode local\" \"tsx watch backend/index.ts local\"",
@@ -35,24 +38,16 @@
     "setup:remote": "tsx scripts/trust.ts local && tsx scripts/certs.ts remote && tsx scripts/trust.ts deck remote",
     "test": "playwright test"
   },
-  "pkg": {
-    "ignore": [
-      "node_modules/bufferutil",
-      "node_modules/utf-8-validate",
-      "node_modules/fsevents"
-    ]
-  },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
-    "@types/adm-zip": "^0.5.8",
-    "@types/node": "^20.19.41",
+    "@types/node": "^24.0.0",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^6.0.1",
-    "@yao-pkg/pkg": "^5.12.0",
     "concurrently": "^8.0.0",
     "esbuild": "^0.28.0",
+    "postject": "^1.0.0-alpha.6",
     "puppeteer": "^24.42.0",
     "react-devtools": "^7.0.1",
     "tsx": "^4.0.0",
@@ -67,7 +62,7 @@
   "author": "kmturley",
   "license": "cc0-1.0",
   "dependencies": {
-    "adm-zip": "^0.5.17",
+    "fflate": "^0.8.2",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
     "ws": "^8.18.3"

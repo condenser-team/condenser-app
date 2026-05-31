@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Compiles each plugin's backend.ts to a self-contained CJS bundle for production.
+// Compiles each plugin's backend.ts to a self-contained ESM bundle for production.
 import { execSync } from 'child_process';
 import { mkdirSync, readdirSync, existsSync } from 'fs';
 import { join, resolve } from 'path';
@@ -15,11 +15,11 @@ for (const pluginsDir of pluginsDirs) {
   for (const name of readdirSync(pluginsDir)) {
     const src = join(pluginsDir, name, 'backend.ts');
     if (!existsSync(src)) continue;
-    const out = join('dist', 'plugins', name, 'backend.cjs');
+    const out = join('dist', 'plugins', name, 'backend.mjs');
     mkdirSync(join('dist', 'plugins', name), { recursive: true });
     console.log(`Building plugin backend: ${name} → ${out}`);
     execSync(
-      `npx esbuild ${src} --bundle --platform=node --target=node20 --format=cjs --outfile=${out}`,
+      `npx esbuild ${src} --bundle --platform=node --target=node24 --format=esm --outfile=${out}`,
       { stdio: 'inherit' },
     );
     built++;

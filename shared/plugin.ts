@@ -5,7 +5,7 @@ export const PluginConvention = {
   FRONTEND_FILE:  'frontend.tsx',
   FRONTEND_BUILT: 'frontend.js',
   BACKEND_FILE:   'backend.ts',
-  BACKEND_BUILT:  'backend.cjs',
+  BACKEND_BUILT:  'backend.mjs',
   URL_PREFIX:     '/plugins/',
 } as const;
 

@@ -65,6 +65,7 @@ export default defineConfig({
     condenserShims,
   ],
   build: {
+    minify: false,
     outDir: path.join(__dirname, '..', 'dist'),
     rollupOptions: {
       input: getPluginEntries(),

@@ -17,7 +17,7 @@ export const pluginsDirs: string[] = [
   ...(process.env.CONDENSER_PLUGINS_DIR ? [path.resolve(process.env.CONDENSER_PLUGINS_DIR)] : []),
 ];
 
-// User-installed plugins — always pre-built (backend.cjs + frontend.js), never dev-mode source.
+// User-installed plugins — always pre-built (backend.mjs + frontend.js), never dev-mode source.
 export const userPluginsDir: string = path.join(os.homedir(), '.condenser', 'plugins');
 
 export interface PluginEntry {

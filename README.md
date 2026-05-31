@@ -100,7 +100,7 @@ Condenser server (Node.js / backend/)
 
 ### Prerequisites
 
-- **Node.js 20+**
+- **Node.js 24 LTS** (required — earlier versions are not supported)
 - **mkcert** — for trusted local HTTPS certificates
 
   ```bash
@@ -174,7 +174,7 @@ npm run dev:tools    # inject React DevTools into Steam
 
 ```bash
 npm run build          # frontend + plugins + backend
-npm run build:binaries # package binaries for all platforms (requires pkg)
+npm run build:binaries # package self-contained binaries for all platforms via Node SEA
 npm run build:installer # build platform installer from pre-built binaries
 npm run build:release  # build:binaries + build:installer in one step
 ```

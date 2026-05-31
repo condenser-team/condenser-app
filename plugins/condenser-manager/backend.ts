@@ -1,7 +1,7 @@
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
-import AdmZip from 'adm-zip';
+import { unzipSync } from 'fflate';
 
 const REGISTRY_BASE = process.env.CONDENSER_REGISTRY_URL
   ?? 'https://condenser-team.github.io/condenser-registry';
@@ -107,7 +107,7 @@ async function fetchRegistry(): Promise<RegistryPlugin[]> {
 
 // ---- Install / uninstall ----
 
-const ALLOWED_PLUGIN_FILES = ['frontend.js', 'backend.cjs'];
+const ALLOWED_PLUGIN_FILES = ['frontend.js', 'backend.mjs'];
 
 async function downloadZip(url: string): Promise<Buffer> {
   const res = await fetch(url);
@@ -116,13 +116,13 @@ async function downloadZip(url: string): Promise<Buffer> {
 }
 
 function extractPluginZip(buffer: Buffer, destDir: string): void {
-  const zip = new AdmZip(buffer);
+  const files = unzipSync(new Uint8Array(buffer));
   fs.mkdirSync(destDir, { recursive: true });
-  for (const entry of zip.getEntries()) {
-    const filename = path.basename(entry.entryName);
+  for (const [entryName, data] of Object.entries(files)) {
+    const filename = path.basename(entryName);
     // Only extract known plugin files — prevents zip-slip path traversal.
     if (!ALLOWED_PLUGIN_FILES.includes(filename)) continue;
-    fs.writeFileSync(path.join(destDir, filename), entry.getData());
+    fs.writeFileSync(path.join(destDir, filename), Buffer.from(data));
   }
 }
 
