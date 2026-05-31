@@ -44,6 +44,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
+    "@types/adm-zip": "^0.5.8",
     "@types/node": "^20.19.41",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
@@ -66,6 +67,7 @@
   "author": "kmturley",
   "license": "cc0-1.0",
   "dependencies": {
+    "adm-zip": "^0.5.17",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
     "ws": "^8.18.3"

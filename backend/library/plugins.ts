@@ -1,3 +1,4 @@
+import os from 'os';
 import path from 'path';
 import { PluginConvention, listPluginIds } from '../../shared/plugin.js';
 
@@ -16,6 +17,9 @@ export const pluginsDirs: string[] = [
   ...(process.env.CONDENSER_PLUGINS_DIR ? [path.resolve(process.env.CONDENSER_PLUGINS_DIR)] : []),
 ];
 
+// User-installed plugins — always pre-built (backend.cjs + frontend.js), never dev-mode source.
+export const userPluginsDir: string = path.join(os.homedir(), '.condenser', 'plugins');
+
 export interface PluginEntry {
   id: string;
   path: string;
@@ -24,11 +28,17 @@ export interface PluginEntry {
 
 export function discoverPlugins(): PluginEntry[] {
   const entryFile = IS_PROD ? PluginConvention.FRONTEND_BUILT : PluginConvention.FRONTEND_FILE;
-  return pluginsDirs.flatMap(dir =>
+  const builtin = pluginsDirs.flatMap(dir =>
     listPluginIds(dir).map(id => ({
       id,
       path: path.join(dir, id, entryFile),
       vitePath: `${PluginConvention.URL_PREFIX}${id}/${PluginConvention.FRONTEND_FILE}`,
     })),
   );
+  const installed = listPluginIds(userPluginsDir).map(id => ({
+    id,
+    path: path.join(userPluginsDir, id, PluginConvention.FRONTEND_BUILT),
+    vitePath: `${PluginConvention.URL_PREFIX}${id}/${PluginConvention.FRONTEND_FILE}`,
+  }));
+  return [...builtin, ...installed];
 }

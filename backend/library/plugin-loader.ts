@@ -4,7 +4,7 @@ import { createRequire } from 'module';
 import { existsSync, readdirSync } from 'fs';
 import WebSocket from 'ws';
 import { WsRouter, broadcastEvent } from './ws-router.js';
-import { pluginsDirs } from './plugins.js';
+import { pluginsDirs, userPluginsDir } from './plugins.js';
 import { PluginConvention } from '../../shared/plugin.js';
 
 const IS_PROD = process.env.NODE_ENV === 'production';
@@ -28,6 +28,15 @@ export async function loadPlugins(router: WsRouter, clients: Set<WebSocket>): Pr
     for (const d of readdirSync(dir, { withFileTypes: true })) {
       if (!d.isDirectory()) continue;
       const backendPath = path.join(dir, d.name, backendFile);
+      if (!existsSync(backendPath)) continue;
+      await loadPlugin(d.name, backendPath, router, clients);
+    }
+  }
+  // User-installed plugins are always pre-built regardless of dev/prod mode.
+  if (existsSync(userPluginsDir)) {
+    for (const d of readdirSync(userPluginsDir, { withFileTypes: true })) {
+      if (!d.isDirectory()) continue;
+      const backendPath = path.join(userPluginsDir, d.name, PluginConvention.BACKEND_BUILT);
       if (!existsSync(backendPath)) continue;
       await loadPlugin(d.name, backendPath, router, clients);
     }

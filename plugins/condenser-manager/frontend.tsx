@@ -1,88 +1,64 @@
 /// <reference lib="dom" />
 import React, { useState, useEffect } from 'react';
 import { useSend, Focusable } from 'condenser:api';
+import type { RegistryPlugin, PluginVersion, MediaObject } from './backend.js';
 
 export const key   = 'condenser-manager';
 export const title = 'Condenser';
 
-// ---- Types (mirror backend schema) ----
+// ---- Local types ----
 
-interface RegistrySystem {
-  type: 'linux' | 'windows' | 'macos';
-  variant?: string;
-  versionMin?: string;
-}
-
-interface RegistryDistribution {
-  '@type': 'DataDownload';
-  contentUrl: string;
-  encodingFormat: string;
-  license?: string;
-  systems: RegistrySystem[];
-  architectures: string[];
-  steamVersionMin?: number;
-}
-
-interface RegistryPlugin {
-  '@type': 'SoftwareApplication';
-  '@id': string;
-  identifier: string;
-  name: string;
-  description: string;
-  author: { '@type': 'Person'; name: string; url?: string };
-  thumbnailUrl?: string;
-  softwareVersion: string;
-  datePublished: string;
-  releaseNotes?: string;
-  distribution: RegistryDistribution[];
-}
-
-interface InstalledPlugin {
-  id: string;
-  disabled: boolean;
-}
-
-interface SystemInfo {
-  platform: string;
-  arch: string;
-}
+interface InstalledPlugin { id: string; }
+interface SystemInfo { platform: string; arch: string; }
 
 // ---- Helpers ----
 
-function platformToSystemType(platform: string): 'linux' | 'windows' | 'macos' {
+function pluginSlug(atId: string): string {
+  try { return new URL(atId).pathname.split('/').filter(Boolean).at(-1) ?? atId; }
+  catch { return atId; }
+}
+
+function platformToOs(platform: string): string {
   if (platform === 'darwin') return 'macos';
   if (platform === 'win32') return 'windows';
   return 'linux';
 }
 
-function isCompatible(plugin: RegistryPlugin, sys: SystemInfo): boolean {
-  const systemType = platformToSystemType(sys.platform);
-  return plugin.distribution.some(
-    (d) =>
-      d.systems.some((s) => s.type === systemType) &&
-      d.architectures.includes(sys.arch),
-  );
+function nodeArchToRegistry(arch: string): string {
+  if (arch === 'x64') return 'x86_64';
+  if (arch === 'ia32') return 'x86';
+  return arch;
 }
 
-function formatName(id: string): string {
-  return id.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+function isCompatible(plugin: RegistryPlugin, sys: SystemInfo): boolean {
+  const media = plugin.latestVersion?.associatedMedia ?? [];
+  if (media.length === 0) return true;
+  const sysOs = platformToOs(sys.platform);
+  const sysArch = nodeArchToRegistry(sys.arch);
+  return media.some(
+    (m: MediaObject) =>
+      (m.operatingSystem == null || m.operatingSystem.includes(sysOs)) &&
+      (m.processorRequirements == null || m.processorRequirements.includes(sysArch)),
+  );
 }
 
 function localPlugin(id: string): RegistryPlugin {
   return {
     '@type': 'SoftwareApplication',
     '@id': id,
-    identifier: id,
-    name: formatName(id),
+    name: id.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
     description: 'Locally installed plugin (not in registry).',
-    author: { '@type': 'Person', name: '—' },
-    softwareVersion: '—',
-    datePublished: '—',
-    distribution: [],
+    applicationCategory: 'utilities',
+    author: { '@id': '', '@type': 'Organization', name: '—' },
+    url: '',
   };
 }
 
-// Spread onto Focusable to enable column d-pad navigation (hyphen can't be a bare JSX prop).
+function pluginVersion(plugin: RegistryPlugin): string {
+  return plugin.latestVersion?.version ?? '—';
+}
+
+// Spread onto Focusable to enable column d-pad navigation.
 const flowCol = { 'flow-children': 'column' } as const;
 
 const filterOptionBtnStyle = (active: boolean): React.CSSProperties => ({
@@ -114,11 +90,10 @@ function Badge({ label, color }: { label: string; color: string }) {
 interface PluginRowProps {
   plugin: RegistryPlugin;
   installed: boolean;
-  disabled?: boolean;
   onDetail: () => void;
 }
 
-function PluginRow({ plugin, installed, disabled, onDetail }: PluginRowProps) {
+function PluginRow({ plugin, installed, onDetail }: PluginRowProps) {
   return (
     <Focusable
       style={{
@@ -131,9 +106,8 @@ function PluginRow({ plugin, installed, disabled, onDetail }: PluginRowProps) {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
           <span style={{ color: 'white', fontSize: 13, fontWeight: 600, flexShrink: 0 }}>{plugin.name}</span>
-          <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, flexShrink: 0 }}>v{plugin.softwareVersion}</span>
-          {disabled && <Badge label="Disabled" color="#555" />}
-          {installed && !disabled && <Badge label="Installed" color="#2e7d32" />}
+          <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, flexShrink: 0 }}>v{pluginVersion(plugin)}</span>
+          {installed && <Badge label="Installed" color="#2e7d32" />}
         </div>
         <span style={{
           color: 'var(--gpSystemLighterGrey)', fontSize: 11,
@@ -152,30 +126,26 @@ function PluginRow({ plugin, installed, disabled, onDetail }: PluginRowProps) {
 interface PluginDetailProps {
   plugin: RegistryPlugin;
   installed: boolean;
-  isDisabled: boolean;
   send: ReturnType<typeof useSend>;
   onBack: () => void;
-  onToggleDisabled: () => void;
 }
 
-function PluginDetail({ plugin, installed, isDisabled, send, onBack, onToggleDisabled }: PluginDetailProps) {
+function PluginDetail({ plugin, installed, send, onBack }: PluginDetailProps) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const slug = pluginSlug(plugin['@id']);
+  const version = plugin.latestVersion;
+  const downloadUrl = version?.associatedMedia[0]?.contentUrl;
 
-  async function doAction(action: string) {
+  async function doAction(action: string, extra?: Record<string, unknown>) {
     setBusy(true);
     setMessage('');
     try {
-      const r = await send(action, { id: plugin.identifier }) as { success: boolean; message: string };
+      const r = await send(action, { id: slug, ...extra }) as { success: boolean; message: string };
       setMessage(r.message);
     } finally {
       setBusy(false);
     }
-  }
-
-  function handleToggleDisabled() {
-    onToggleDisabled();
-    doAction(isDisabled ? 'enablePlugin' : 'disablePlugin');
   }
 
   return (
@@ -186,28 +156,28 @@ function PluginDetail({ plugin, installed, isDisabled, send, onBack, onToggleDis
       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
         <span style={{ color: 'white', fontSize: 14, fontWeight: 600 }}>{plugin.name}</span>
         <span style={{ color: 'var(--gpSystemLighterGrey)', fontSize: 11 }}>
-          v{plugin.softwareVersion} · {plugin.author.name} · {plugin.datePublished}
+          {version ? `v${version.version} · ` : ''}{plugin.author.name} · {version?.datePublished ?? '—'}
         </span>
       </div>
       <p style={{ margin: 0, color: 'rgba(255,255,255,0.8)', fontSize: 12, lineHeight: 1.5 }}>
         {plugin.description}
       </p>
-      {plugin.releaseNotes && (
-        <p style={{ margin: 0, color: 'var(--gpSystemLighterGrey)', fontSize: 11 }}>{plugin.releaseNotes}</p>
+      {version?.releaseNotes && (
+        <p style={{ margin: 0, color: 'var(--gpSystemLighterGrey)', fontSize: 11 }}>{version.releaseNotes}</p>
       )}
       {message && <p style={{ margin: 0, fontSize: 11, color: '#aef' }}>{message}</p>}
       <div style={{ display: 'flex', gap: 6 }}>
         {installed ? (
-          <>
-            <button className="DialogButton _DialogLayout Secondary" style={{ fontSize: 12 }} disabled={busy} onClick={handleToggleDisabled}>
-              {isDisabled ? 'Enable' : 'Disable'}
-            </button>
-            <button className="DialogButton _DialogLayout Secondary" style={{ fontSize: 12 }} disabled={busy} onClick={() => doAction('uninstallPlugin')}>
-              Uninstall
-            </button>
-          </>
+          <button className="DialogButton _DialogLayout Secondary" style={{ fontSize: 12 }} disabled={busy} onClick={() => doAction('uninstallPlugin')}>
+            Uninstall
+          </button>
         ) : (
-          <button className="DialogButton _DialogLayout Primary" style={{ fontSize: 12 }} disabled={busy} onClick={() => doAction('installPlugin')}>
+          <button
+            className="DialogButton _DialogLayout Primary"
+            style={{ fontSize: 12 }}
+            disabled={busy || !downloadUrl}
+            onClick={() => doAction('installPlugin', { contentUrl: downloadUrl })}
+          >
             {busy ? 'Installing…' : 'Install'}
           </button>
         )}
@@ -248,56 +218,40 @@ export function Panel() {
   const { registry, installed, installedIds, systemInfo, loading } = useRegistryData(send);
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [disabledIds, setDisabledIds] = useState<Set<string>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | 'installed'>('all');
-
-  useEffect(() => {
-    setDisabledIds(new Set(installed.filter((p) => p.disabled).map((p) => p.id)));
-  }, [installed]);
-
-  function toggleDisabled(id: string) {
-    setDisabledIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  }
 
   // Detail view
   if (selectedId) {
     const plugin =
-      registry.find((p) => p.identifier === selectedId) ??
-      (installed.find((i) => i.id === selectedId) ? localPlugin(selectedId) : null);
+      registry.find((p) => pluginSlug(p['@id']) === selectedId) ??
+      (installedIds.has(selectedId) ? localPlugin(selectedId) : null);
     if (plugin) {
       return (
         <PluginDetail
           plugin={plugin}
           installed={installedIds.has(selectedId)}
-          isDisabled={disabledIds.has(selectedId)}
           send={send}
           onBack={() => setSelectedId(null)}
-          onToggleDisabled={() => toggleDisabled(selectedId)}
         />
       );
     }
   }
 
-  // Build unified list: registry plugins + locally installed plugins not in registry
-  const registryIds = new Set(registry.map((p) => p.identifier));
-  const localOnly = installed.filter((i) => !registryIds.has(i.id)).map((i) => localPlugin(i.id));
+  // Unified list: registry plugins + locally installed plugins not in registry
+  const registrySlugs = new Set(registry.map((p) => pluginSlug(p['@id'])));
+  const localOnly = installed.filter((i) => !registrySlugs.has(i.id)).map((i) => localPlugin(i.id));
   const allPlugins = [...registry, ...localOnly];
 
-  // Auto-filter: hide plugins incompatible with current OS/arch (local-only plugins always shown)
+  // Filter out plugins incompatible with current OS/arch (local-only plugins always shown)
   const compatible = allPlugins.filter(
-    (p) => p.distribution.length === 0 || !systemInfo || isCompatible(p, systemInfo),
+    (p) => !p.latestVersion || !systemInfo || isCompatible(p, systemInfo),
   );
   const hiddenCount = allPlugins.length - compatible.length;
-
   const activeFilterCount = filterStatus !== 'all' ? 1 : 0;
 
   const filtered = compatible
-    .filter((p) => filterStatus === 'all' || installedIds.has(p.identifier))
+    .filter((p) => filterStatus === 'all' || installedIds.has(pluginSlug(p['@id'])))
     .filter(
       (p) =>
         !search ||
@@ -351,11 +305,10 @@ export function Panel() {
         <Focusable {...flowCol} style={{ display: 'flex', flexDirection: 'column' }}>
           {filtered.map((p) => (
             <PluginRow
-              key={p.identifier}
+              key={p['@id']}
               plugin={p}
-              installed={installedIds.has(p.identifier)}
-              disabled={disabledIds.has(p.identifier)}
-              onDetail={() => setSelectedId(p.identifier)}
+              installed={installedIds.has(pluginSlug(p['@id']))}
+              onDetail={() => setSelectedId(pluginSlug(p['@id']))}
             />
           ))}
           {hiddenCount > 0 && !search && (
@@ -381,7 +334,6 @@ export function Persistent(_: { websocketUrl: string }) {
   }, []);
 
   const closeModal = () => setModal(null);
-
   if (!modal) return null;
 
   return (
