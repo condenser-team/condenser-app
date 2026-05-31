@@ -7,7 +7,7 @@ import { createServer as createHttpServer, IncomingMessage, ServerResponse } fro
 import { createLogger } from '../../shared/logger.js';
 import { getRuntimeConfig, getTlsOptions, Mode } from '../../shared/runtime.js';
 import { Route, Auth } from '../../shared/protocol.js';
-import { discoverPlugins } from './plugins.js';
+import { discoverPlugins, userPluginsDir } from './plugins.js';
 import { WsRouter } from './ws-router.js';
 import { loadPlugins } from './plugin-loader.js';
 
@@ -85,6 +85,15 @@ function isAllowedRequest(request: IncomingMessage, allowedOrigins: string[]): b
   return allowedOrigins.includes(origin);
 }
 
+function serveFile(filePath: string, res: ServerResponse): boolean {
+  const ext = path.extname(filePath);
+  if (!ext || !existsSync(filePath)) return false;
+  const contentType = MIME[ext] ?? 'application/octet-stream';
+  res.writeHead(200, { 'Content-Type': contentType, 'Access-Control-Allow-Origin': '*' });
+  createReadStream(filePath).pipe(res);
+  return true;
+}
+
 function createRequestHandler(csrfToken: string, isProduction: boolean) {
   return (req: IncomingMessage, res: ServerResponse) => {
     if (req.url === Auth.ENDPOINT) {
@@ -95,13 +104,15 @@ function createRequestHandler(csrfToken: string, isProduction: boolean) {
 
     if (isProduction) {
       const safePath = (req.url ?? '/').replace(/[?#].*$/, '');
-      const filePath = path.join(process.cwd(), 'dist', safePath);
-      const ext = path.extname(filePath);
-      if (ext && existsSync(filePath)) {
-        const contentType = MIME[ext] ?? 'application/octet-stream';
-        res.writeHead(200, { 'Content-Type': contentType, 'Access-Control-Allow-Origin': '*' });
-        createReadStream(filePath).pipe(res);
-        return;
+
+      // Built-in plugins and frontend assets served from dist/
+      if (serveFile(path.join(process.cwd(), 'dist', safePath), res)) return;
+
+      // User-installed plugins served from ~/.condenser/plugins/{id}/{file}
+      const parts = safePath.split('/').filter(Boolean); // ['plugins', 'id', 'filename']
+      if (parts.length === 3 && parts[0] === 'plugins') {
+        const [, id, filename] = parts;
+        if (serveFile(path.join(userPluginsDir, id, filename), res)) return;
       }
     }
 

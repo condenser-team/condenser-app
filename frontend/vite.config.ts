@@ -10,6 +10,16 @@ const projectRoot = path.resolve(__dirname, '..');
 const mode = getModeFromArg(process.argv.slice(2));
 const config = getRuntimeConfig(mode);
 
+// Optional extra plugins directory from an external plugin repo during development.
+const extraPluginsDir = process.env.CONDENSER_PLUGINS_DIR
+  ? path.resolve(process.env.CONDENSER_PLUGINS_DIR)
+  : null;
+
+const allPluginsDirs = [
+  path.join(projectRoot, 'plugins'),
+  ...(extraPluginsDir ? [extraPluginsDir] : []),
+];
+
 // Resolve 'react', 'react/jsx-runtime', and 'condenser:api' to shim modules
 // so plugin code uses Steam's webpack-bundled React without bundling it.
 const condenserShims: Plugin = {
@@ -21,25 +31,31 @@ const condenserShims: Plugin = {
     if (id === 'condenser:api') return path.join(__dirname, 'library/api.ts');
     return null;
   },
+  configureServer(server) {
+    if (extraPluginsDir) server.watcher.add(extraPluginsDir);
+  },
   handleHotUpdate({ file, server }) {
-    if (!file.startsWith(path.join(projectRoot, 'plugins') + path.sep)) return;
-    const rel = path.relative(path.join(projectRoot, 'plugins'), file);
-    const parts = rel.split(path.sep);
-    if (parts.length < 2 || path.basename(file) !== PluginConvention.FRONTEND_FILE) return;
-    const pluginId = parts[0];
-    server.hot.send({ type: 'custom', event: 'condenser:plugin-updated', data: { id: pluginId, url: `${PluginConvention.URL_PREFIX}${pluginId}/${PluginConvention.FRONTEND_FILE}` } });
-    return [];
+    for (const dir of allPluginsDirs) {
+      if (!file.startsWith(dir + path.sep)) continue;
+      const rel = path.relative(dir, file);
+      const parts = rel.split(path.sep);
+      if (parts.length < 2 || path.basename(file) !== PluginConvention.FRONTEND_FILE) return;
+      const pluginId = parts[0];
+      server.hot.send({ type: 'custom', event: 'condenser:plugin-updated', data: { id: pluginId, url: `${PluginConvention.URL_PREFIX}${pluginId}/${PluginConvention.FRONTEND_FILE}` } });
+      return [];
+    }
   },
 };
 
 // Build entry points: boot.ts + one per plugin frontend.tsx
 function getPluginEntries(): Record<string, string> {
-  const pluginsDir = path.join(projectRoot, 'plugins');
   const entries: Record<string, string> = {
     'frontend/index': path.join(__dirname, 'index.ts'),
   };
-  for (const id of listPluginIds(pluginsDir)) {
-    entries[`plugins/${id}/frontend`] = path.join(pluginsDir, id, PluginConvention.FRONTEND_FILE);
+  for (const dir of allPluginsDirs) {
+    for (const id of listPluginIds(dir)) {
+      entries[`plugins/${id}/frontend`] = path.join(dir, id, PluginConvention.FRONTEND_FILE);
+    }
   }
   return entries;
 }
@@ -72,6 +88,9 @@ export default defineConfig({
       origin: config.allowedOrigins,
     },
     allowedHosts: config.allowedHosts,
+    fs: {
+      allow: [projectRoot, ...(extraPluginsDir ? [extraPluginsDir] : [])],
+    },
     hmr: {
       protocol: config.certPath ? 'wss' : 'ws',
       host: config.publicHost,

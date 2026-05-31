@@ -1,0 +1,9 @@
+{
+  "extends": "../frontend/tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "condenser:api": ["../frontend/library/api.ts"]
+    }
+  },
+  "include": ["**/*.tsx"]
+}
