@@ -1,6 +1,6 @@
 {
-  "name": "condenser",
-  "version": "1.0.0",
+  "name": "condenser-app",
+  "version": "0.1.0",
   "type": "module",
   "description": "Turns Steam into liquid",
   "main": "dist/index.js",
