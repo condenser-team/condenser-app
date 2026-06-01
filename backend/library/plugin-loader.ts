@@ -22,6 +22,7 @@ interface PluginBackend {
 
 export async function loadPlugins(router: WsRouter, clients: Set<WebSocket>): Promise<void> {
   const backendFile = IS_PROD ? PluginConvention.BACKEND_BUILT : PluginConvention.BACKEND_FILE;
+  const loadedIds = new Set<string>();
   for (const dir of pluginsDirs) {
     if (!existsSync(dir)) continue;
     for (const d of readdirSync(dir, { withFileTypes: true })) {
@@ -29,12 +30,13 @@ export async function loadPlugins(router: WsRouter, clients: Set<WebSocket>): Pr
       const backendPath = path.join(dir, d.name, backendFile);
       if (!existsSync(backendPath)) continue;
       await loadPlugin(d.name, backendPath, router, clients);
+      loadedIds.add(d.name);
     }
   }
-  // User-installed plugins are always pre-built regardless of dev/prod mode.
+  // User-installed plugins — skip any already loaded from dev/builtin sources.
   if (existsSync(userPluginsDir)) {
     for (const d of readdirSync(userPluginsDir, { withFileTypes: true })) {
-      if (!d.isDirectory()) continue;
+      if (!d.isDirectory() || loadedIds.has(d.name)) continue;
       const backendPath = path.join(userPluginsDir, d.name, PluginConvention.BACKEND_BUILT);
       if (!existsSync(backendPath)) continue;
       await loadPlugin(d.name, backendPath, router, clients);

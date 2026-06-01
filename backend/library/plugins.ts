@@ -28,17 +28,24 @@ export interface PluginEntry {
 
 export function discoverPlugins(): PluginEntry[] {
   const entryFile = IS_PROD ? PluginConvention.FRONTEND_BUILT : PluginConvention.FRONTEND_FILE;
+  const seen = new Set<string>();
   const builtin = pluginsDirs.flatMap(dir =>
-    listPluginIds(dir).map(id => ({
-      id,
-      path: path.join(dir, id, entryFile),
-      vitePath: `${PluginConvention.URL_PREFIX}${id}/${PluginConvention.FRONTEND_FILE}`,
-    })),
+    listPluginIds(dir).map(id => {
+      seen.add(id);
+      return {
+        id,
+        path: path.join(dir, id, entryFile),
+        vitePath: `${PluginConvention.URL_PREFIX}${id}/${PluginConvention.FRONTEND_FILE}`,
+      };
+    }),
   );
-  const installed = listPluginIds(userPluginsDir).map(id => ({
-    id,
-    path: path.join(userPluginsDir, id, PluginConvention.FRONTEND_BUILT),
-    vitePath: `${PluginConvention.URL_PREFIX}${id}/${PluginConvention.FRONTEND_FILE}`,
-  }));
+  // Skip user-installed plugins that are already present in dev/builtin sources.
+  const installed = listPluginIds(userPluginsDir)
+    .filter(id => !seen.has(id))
+    .map(id => ({
+      id,
+      path: path.join(userPluginsDir, id, PluginConvention.FRONTEND_BUILT),
+      vitePath: `${PluginConvention.URL_PREFIX}${id}/${PluginConvention.FRONTEND_FILE}`,
+    }));
   return [...builtin, ...installed];
 }

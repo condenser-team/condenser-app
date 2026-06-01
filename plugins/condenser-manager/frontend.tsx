@@ -8,7 +8,7 @@ export const title = 'Condenser';
 
 // ---- Local types ----
 
-interface InstalledPlugin { id: string; }
+interface InstalledPlugin { id: string; dev?: boolean; }
 interface SystemInfo { platform: string; arch: string; }
 
 // ---- Helpers ----
@@ -90,10 +90,11 @@ function Badge({ label, color }: { label: string; color: string }) {
 interface PluginRowProps {
   plugin: RegistryPlugin;
   installed: boolean;
+  dev: boolean;
   onDetail: () => void;
 }
 
-function PluginRow({ plugin, installed, onDetail }: PluginRowProps) {
+function PluginRow({ plugin, installed, dev, onDetail }: PluginRowProps) {
   return (
     <Focusable
       style={{
@@ -107,7 +108,8 @@ function PluginRow({ plugin, installed, onDetail }: PluginRowProps) {
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
           <span style={{ color: 'white', fontSize: 13, fontWeight: 600, flexShrink: 0 }}>{plugin.name}</span>
           <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, flexShrink: 0 }}>v{pluginVersion(plugin)}</span>
-          {installed && <Badge label="Installed" color="#2e7d32" />}
+          {dev && <Badge label="DEV" color="#e65100" />}
+          {installed && !dev && <Badge label="Installed" color="#2e7d32" />}
         </div>
         <span style={{
           color: 'var(--gpSystemLighterGrey)', fontSize: 11,
@@ -126,11 +128,12 @@ function PluginRow({ plugin, installed, onDetail }: PluginRowProps) {
 interface PluginDetailProps {
   plugin: RegistryPlugin;
   installed: boolean;
+  dev: boolean;
   send: ReturnType<typeof useSend>;
   onBack: () => void;
 }
 
-function PluginDetail({ plugin, installed, send, onBack }: PluginDetailProps) {
+function PluginDetail({ plugin, installed, dev, send, onBack }: PluginDetailProps) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const slug = pluginSlug(plugin['@id']);
@@ -166,8 +169,10 @@ function PluginDetail({ plugin, installed, send, onBack }: PluginDetailProps) {
         <p style={{ margin: 0, color: 'var(--gpSystemLighterGrey)', fontSize: 11 }}>{version.releaseNotes}</p>
       )}
       {message && <p style={{ margin: 0, fontSize: 11, color: '#aef' }}>{message}</p>}
-      <div style={{ display: 'flex', gap: 6 }}>
-        {installed ? (
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        {dev ? (
+          <span style={{ fontSize: 11, color: '#ff9800' }}>Dev mode — running from local source</span>
+        ) : installed ? (
           <button className="DialogButton _DialogLayout Secondary" style={{ fontSize: 12 }} disabled={busy} onClick={() => doAction('uninstallPlugin')}>
             Uninstall
           </button>
@@ -208,14 +213,15 @@ function useRegistryData(send: ReturnType<typeof useSend>) {
   }, []);
 
   const installedIds = new Set(installed.map((p) => p.id));
-  return { registry, installed, installedIds, systemInfo, loading };
+  const devIds = new Set(installed.filter((p) => p.dev).map((p) => p.id));
+  return { registry, installed, installedIds, devIds, systemInfo, loading };
 }
 
 // ---- Panel ----
 
 export function Panel() {
   const send = useSend('condenser-manager');
-  const { registry, installed, installedIds, systemInfo, loading } = useRegistryData(send);
+  const { registry, installed, installedIds, devIds, systemInfo, loading } = useRegistryData(send);
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
@@ -231,6 +237,7 @@ export function Panel() {
         <PluginDetail
           plugin={plugin}
           installed={installedIds.has(selectedId)}
+          dev={devIds.has(selectedId)}
           send={send}
           onBack={() => setSelectedId(null)}
         />
@@ -308,6 +315,7 @@ export function Panel() {
               key={p['@id']}
               plugin={p}
               installed={installedIds.has(pluginSlug(p['@id']))}
+              dev={devIds.has(pluginSlug(p['@id']))}
               onDetail={() => setSelectedId(pluginSlug(p['@id']))}
             />
           ))}

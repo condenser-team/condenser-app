@@ -136,12 +136,30 @@ export async function getRegistry(): Promise<RegistryPlugin[]> {
   return fetchRegistry();
 }
 
-export async function getInstalledPlugins(): Promise<Array<{ id: string }>> {
-  if (!fs.existsSync(userPluginsDir)) return [];
-  return fs
-    .readdirSync(userPluginsDir, { withFileTypes: true })
-    .filter((d: fs.Dirent) => d.isDirectory())
-    .map((d: fs.Dirent) => ({ id: d.name }));
+export async function getInstalledPlugins(): Promise<Array<{ id: string; dev?: boolean }>> {
+  const result: Array<{ id: string; dev?: boolean }> = [];
+
+  // Dev plugins injected via CONDENSER_PLUGINS_DIR (e.g. npm run dev in a plugin repo).
+  if (process.env.CONDENSER_PLUGINS_DIR) {
+    const devDir = path.resolve(process.env.CONDENSER_PLUGINS_DIR);
+    if (fs.existsSync(devDir)) {
+      fs.readdirSync(devDir, { withFileTypes: true })
+        .filter((d: fs.Dirent) => d.isDirectory() && (
+          fs.existsSync(path.join(devDir, d.name, 'frontend.tsx')) ||
+          fs.existsSync(path.join(devDir, d.name, 'frontend.js'))
+        ))
+        .forEach((d: fs.Dirent) => result.push({ id: d.name, dev: true }));
+    }
+  }
+
+  // User-installed plugins from ~/.condenser/plugins.
+  if (fs.existsSync(userPluginsDir)) {
+    fs.readdirSync(userPluginsDir, { withFileTypes: true })
+      .filter((d: fs.Dirent) => d.isDirectory())
+      .forEach((d: fs.Dirent) => result.push({ id: d.name }));
+  }
+
+  return result;
 }
 
 export async function installPlugin(data: { id: string; contentUrl: string }) {

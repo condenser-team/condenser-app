@@ -1,3 +1,4 @@
+import { existsSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { defineConfig, Plugin } from 'vite';
@@ -32,7 +33,24 @@ const condenserShims: Plugin = {
     return null;
   },
   configureServer(server) {
-    if (extraPluginsDir) server.watcher.add(extraPluginsDir);
+    if (extraPluginsDir) {
+      server.watcher.add(extraPluginsDir);
+      // Vite maps /plugins/<id>/... to <root>/plugins/<id>/... which only works for
+      // built-in plugins.  For external plugins we rewrite to /@fs<absolute-path>
+      // so Vite's transform pipeline finds and compiles the actual file.
+      server.middlewares.use((req, _res, next) => {
+        if (!req.url?.startsWith(PluginConvention.URL_PREFIX)) return next();
+        const qIdx = req.url.indexOf('?');
+        const urlPath = qIdx === -1 ? req.url : req.url.slice(0, qIdx);
+        const qs     = qIdx === -1 ? '' : req.url.slice(qIdx);
+        const rel    = urlPath.slice(PluginConvention.URL_PREFIX.length); // '<id>/filename'
+        const sep    = rel.indexOf('/');
+        if (sep === -1) return next();
+        const externalFile = path.join(extraPluginsDir, rel.slice(0, sep), rel.slice(sep + 1));
+        if (existsSync(externalFile)) req.url = `/@fs${externalFile}${qs}`;
+        next();
+      });
+    }
   },
   handleHotUpdate({ file, server }) {
     for (const dir of allPluginsDirs) {
