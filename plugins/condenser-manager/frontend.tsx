@@ -104,6 +104,13 @@ function PluginRow({ plugin, installed, dev, onDetail }: PluginRowProps) {
       }}
       onClick={onDetail}
     >
+      {plugin.image && (
+        <img
+          src={plugin.image}
+          alt=""
+          style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
+        />
+      )}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
           <span style={{ color: 'white', fontSize: 13, fontWeight: 600, flexShrink: 0 }}>{plugin.name}</span>
@@ -156,6 +163,13 @@ function PluginDetail({ plugin, installed, dev, send, onBack }: PluginDetailProp
       <button className="DialogButton _DialogLayout Secondary Focusable" style={{ width: 'auto', fontSize: 12 }} onClick={onBack}>
         ← Back
       </button>
+      {plugin.image && (
+        <img
+          src={plugin.image}
+          alt=""
+          style={{ width: '100%', borderRadius: 6, objectFit: 'cover', display: 'block' }}
+        />
+      )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
         <span style={{ color: 'white', fontSize: 14, fontWeight: 600 }}>{plugin.name}</span>
         <span style={{ color: 'var(--gpSystemLighterGrey)', fontSize: 11 }}>

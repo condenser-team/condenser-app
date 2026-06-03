@@ -3,6 +3,7 @@ import { getCondenser } from './condenser.js';
 import { findWebpackExport, findWebpackModule } from './steam.js';
 import { injectFCTrampoline } from './fc.js';
 import { replacePatch, callOriginal } from './patch.js';
+import { getReactFiberRoot } from './tree.js';
 
 export interface ToastOptions {
   title: string;
@@ -57,9 +58,13 @@ export function initToaster(): void {
     const location = (args[0] as any)?.location as number;
     if (!group?.notifications?.[0]?.condenser) return callOriginal;
 
+    // Filter out the silent prime notification (ID -1) used to initialise the MobX tray.
+    const notifs = group.notifications.filter((n: any) => n.nNotificationID !== -1);
+    if (notifs.length === 0) return null;
+
     const classes = getTemplateClasses();
 
-    return group.notifications.map((notif: any) => {
+    return notifs.map((notif: any) => {
       const { title, body, duration = 5000 } = notif.data as ToastOptions;
 
       if (location === LOCATION_QAM) {
@@ -112,7 +117,82 @@ export function initToaster(): void {
   });
 
   toasterReady = true;
+
+  // Prime the NotificationStore so its popup tray is initialised as a live MobX observable
+  // before the first real showToast() call. initToaster() runs at boot, before any plugin
+  // has had a chance to show a toast. On the very first ProcessNotification call the tray
+  // is a plain array — unshift() adds the item but no MobX reaction fires, so React never
+  // receives the group and the popup stays blank (sound still plays via the native path).
+  // A silent prime call here initialises the observable; subsequent calls work correctly.
+  primeNotificationStore();
+
+  // Keep the fiber-upgrade pass as a secondary guard: if ValveToastRenderer is already
+  // mounted as an FC fiber (tag=2) it would bypass the class trampoline on the first
+  // update. Replacing type/elementType forces a type-mismatch remount as ClassComponent.
+  upgradeExistingRendererFibers(ValveToastRenderer, trampoline.component);
+
   console.info('[condenser] toast: Initialized');
+}
+
+function primeNotificationStore(): void {
+  const NotificationStore = (window as any).NotificationStore;
+  if (!NotificationStore) return;
+  let primeGroup: any;
+  try {
+    NotificationStore.ProcessNotification(
+      {
+        // showToast must be true so Steam calls fnTray, which turns the popup tray into
+        // a live MobX observable. showToast: false skips fnTray entirely.
+        showToast:      true,
+        sound:          0,
+        playSound:      false,
+        eFeature:       0,
+        toastDurationMS: 1,
+        bCritical:      false,
+        fnTray(toast: any, tray: any) {
+          primeGroup = { eType: toast.eType, notifications: [toast] };
+          tray.unshift(primeGroup);
+        },
+      },
+      {
+        nNotificationID: -1,
+        bNewIndicator:   false,
+        rtCreated:       Date.now(),
+        eType:           31,
+        eSource:         1,
+        nToastDurationMS: 1,
+        data:            {},
+        condenser:       true,
+      },
+      0,
+    );
+    // Defer removal so the MobX observable has settled before we clear the prime group.
+    if (primeGroup) setTimeout(() => { try { NotificationStore.RemoveGroupFromTray(primeGroup); } catch {} }, 0);
+  } catch {
+    // Silently ignore — prime is best-effort.
+  }
+}
+
+function upgradeExistingRendererFibers(originalType: any, replacement: any): void {
+  const rootEl = document.getElementById('root');
+  if (!rootEl) return;
+  const fiberRoot = getReactFiberRoot(rootEl);
+  if (!fiberRoot) return;
+
+  function traverse(node: any): void {
+    if (!node) return;
+    if (node.tag === 2 /* FunctionComponent */ && node.type === originalType) {
+      node.type = replacement;
+      node.elementType = replacement;
+      if (node.alternate) {
+        node.alternate.type = replacement;
+        node.alternate.elementType = replacement;
+      }
+    }
+    traverse(node.child);
+    traverse(node.sibling);
+  }
+  traverse(fiberRoot);
 }
 
 export function showToast(options: ToastOptions): void {

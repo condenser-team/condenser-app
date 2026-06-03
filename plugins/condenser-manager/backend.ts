@@ -80,6 +80,19 @@ function pluginSlug(atId: string): string {
   catch { return atId; }
 }
 
+// Image URLs in registry JSON are baked with whatever host served the registry
+// (e.g. http://localhost:3000 in dev). Rewrite them to always use REGISTRY_BASE
+// so the browser receives an HTTPS URL and avoids mixed-content blocks.
+function rewriteImageUrl(image: string | null | undefined): string | null {
+  if (!image) return null;
+  try {
+    const { pathname } = new URL(image);
+    return `${REGISTRY_BASE}${pathname}`;
+  } catch {
+    return image;
+  }
+}
+
 // ---- Registry fetching ----
 
 async function fetchRegistry(): Promise<RegistryPlugin[]> {
@@ -96,7 +109,7 @@ async function fetchRegistry(): Promise<RegistryPlugin[]> {
         registryFetch(`plugins/${slug}/index.json`) as Promise<RegistryPlugin>,
         registryFetch(`plugins/${slug}/versions/latest/index.json`).catch(() => undefined) as Promise<PluginVersion | undefined>,
       ]);
-      return { ...pluginDoc, latestVersion };
+      return { ...pluginDoc, image: rewriteImageUrl(pluginDoc.image), latestVersion };
     } catch {
       return null;
     }
