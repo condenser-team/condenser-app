@@ -1,4 +1,6 @@
 
+export { useQAMVisible } from './tab.js';
+
 // EUIMode values from Steam's internal enum (source: Decky decky-frontend-lib/src/globals/steam-client/shared.ts)
 export const UIMode = {
   Unknown: -1,

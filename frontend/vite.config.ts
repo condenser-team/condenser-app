@@ -29,7 +29,20 @@ const condenserShims: Plugin = {
   resolveId(id) {
     if (id === 'react') return path.join(__dirname, 'library/react.ts');
     if (id === 'react/jsx-runtime' || id === 'react/jsx-dev-runtime') return path.join(__dirname, 'library/react-jsx.ts');
-    if (id === 'condenser:api') return path.join(__dirname, 'library/api.ts');
+    if (id.startsWith('condenser:')) {
+      const sub = id.slice('condenser:'.length); // 'api', 'nav', 'css', 'ui', 'plugin', 'steam', 'events'
+      const fileMap: Record<string, string> = {
+        api:    'api',
+        nav:    'nav',
+        plugin: 'plugin',
+        ui:     'ui',
+        css:    'css',
+        steam:  'steam-api',  // avoids collision with internal steam.ts webpack utilities
+        events: 'events',
+      };
+      const file = fileMap[sub] ?? sub;
+      return path.join(__dirname, `library/${file}.ts`);
+    }
     return null;
   },
   configureServer(server) {

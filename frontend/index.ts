@@ -10,7 +10,7 @@ import * as plugins    from './library/loader.js';
 import { boot, installPreamble } from './library/boot.js';
 import type { CondenserNamespace } from './library/types.js';
 
-const condenser = ((window as any).__condenser ||= { core: {}, components: {} }) as CondenserNamespace;
+const condenser = ((window as any).__condenser ||= { core: {}, components: {}, stylesheets: new Map() }) as CondenserNamespace;
 condenser.tree       = tree;
 condenser.steam      = steam;
 condenser.tab  = tab;

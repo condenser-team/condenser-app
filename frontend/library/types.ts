@@ -1,5 +1,12 @@
 import type * as ReactModule from 'react';
 
+export interface StyleEntry {
+  pluginKey: string;
+  target: string;
+  css: string;
+  el: HTMLStyleElement;
+}
+
 export interface PluginComponent {
   key: string;
   title?: string;
@@ -11,6 +18,9 @@ export interface PluginComponent {
   page?: ReactModule.ComponentType<{ websocketUrl: string }>;
   // Persistent surface: plugin exports Persistent (rendered on every page)
   persistent?: ReactModule.ComponentType<{ websocketUrl: string }>;
+  // Lifecycle hooks — called by Condenser, not by plugin code directly
+  onMount?:   () => void;
+  onUnmount?: () => void;
 }
 
 export interface PluginNamespace {
@@ -39,6 +49,7 @@ export interface CondenserCore {
 export interface CondenserNamespace {
   core: Partial<CondenserCore>;
   components: Record<string, PluginNamespace>;
+  stylesheets: Map<string, StyleEntry>;
   plugins: {
     callPlugin: (route: string, params?: unknown) => Promise<unknown>;
     loadPlugin: (id: string, url: string) => Promise<void>;

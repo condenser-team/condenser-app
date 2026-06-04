@@ -31,9 +31,25 @@ export function callPlugin(route: string, params?: unknown): Promise<any> {
   });
 }
 
+export function unloadPlugin(id: string): void {
+  const condenser = getCondenser();
+  const ns = condenser.components[id];
+  if (!ns?.component) return;
+  try {
+    ns.component.onUnmount?.();
+  } catch (e: any) {
+    console.error('[condenser] onUnmount threw for plugin', id, e.message);
+  }
+  ns.component = undefined;
+  console.info('[condenser] Unloaded plugin', id);
+}
+
 export async function loadPlugin(id: string, url: string): Promise<void> {
   const condenser = getCondenser();
   try {
+    // Tear down the previous version before replacing it (handles hot-reload).
+    unloadPlugin(id);
+
     const mod = await import(/* @vite-ignore */ url);
     const ns = (condenser.components[id] ||= {});
     ns.component = {
@@ -44,11 +60,14 @@ export async function loadPlugin(id: string, url: string): Promise<void> {
       route: mod.route,
       page: mod.Page,
       persistent: mod.Persistent,
+      onMount:   mod.onMount,
+      onUnmount: mod.onUnmount,
     };
     tabRender(id);
     pageRender(id);
     persistentRender(id);
     ns.forceUpdaters?.forEach(fn => fn());
+    ns.component.onMount?.();
     console.info('[condenser] Loaded plugin', id);
   } catch (e: any) {
     console.error('[condenser] Failed to load plugin', id, e.message);
