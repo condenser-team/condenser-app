@@ -26,16 +26,16 @@ test.afterAll(async () => {
 });
 
 test.describe('Condenser boot', () => {
-  test('window.__condenser namespace exists', async () => {
+  test('window.condenser namespace exists', async () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
-    const exists = await page.evaluate(() => typeof (window as any).__condenser === 'object');
+    const exists = await page.evaluate(() => typeof (window as any).condenser === 'object');
     expect(exists).toBe(true);
   });
 
   test('core.React and core.ReactDOM are resolved from webpack', async () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
     const result = await page.evaluate(() => {
-      const c = (window as any).__condenser;
+      const c = (window as any).condenser;
       return {
         hasReact: typeof c?.core?.React?.createElement === 'function',
         hasReactDOM: typeof c?.core?.ReactDOM?.createRoot === 'function',
@@ -48,7 +48,7 @@ test.describe('Condenser boot', () => {
   test('plugins API surface is complete', async () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
     const result = await page.evaluate(() => {
-      const p = (window as any).__condenser?.plugins;
+      const p = (window as any).condenser?.plugins;
       return {
         callPlugin: typeof p?.callPlugin === 'function',
         loadPlugin: typeof p?.loadPlugin === 'function',
@@ -65,7 +65,7 @@ test.describe('Condenser boot', () => {
   test('page API surface is complete', async () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
     const result = await page.evaluate(() => {
-      const p = (window as any).__condenser?.page;
+      const p = (window as any).condenser?.page;
       return {
         renderComponent: typeof p?.renderComponent === 'function',
         activatePage: typeof p?.activatePage === 'function',
@@ -82,7 +82,7 @@ test.describe('Condenser boot', () => {
   test('WebSocket connection to backend is open', async () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
     const wsOpen = await page.evaluate(
-      () => (window as any).__condenser?.core?.ws?.readyState === WebSocket.OPEN,
+      () => (window as any).condenser?.core?.ws?.readyState === WebSocket.OPEN,
     );
     expect(wsOpen).toBe(true);
   });

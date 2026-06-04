@@ -19,7 +19,7 @@ function makeBootScript(frontendOrigin: string, wsUrl: string, isProduction = fa
   const ext = isProduction ? '.js' : '.ts';
   const bootUrl = `${frontendOrigin}/frontend/index${ext}`;
   return `(async () => {
-    const c = (window.__condenser ||= { core: {}, components: {} });
+    const c = (window.condenser ||= { core: {}, components: {} });
     c.core.url = ${JSON.stringify(wsUrl)};
     await import(${JSON.stringify(bootUrl)} + '?t=' + Date.now());
   })()`;
@@ -27,7 +27,7 @@ function makeBootScript(frontendOrigin: string, wsUrl: string, isProduction = fa
 
 function makeReloadScript(id: string, pluginUrl: string): string {
   return `(async () => {
-    const c = window.__condenser;
+    const c = window.condenser;
     if (c?.plugins?.loadPlugin) {
       await c.plugins.loadPlugin(${JSON.stringify(id)}, ${JSON.stringify(pluginUrl)} + '?t=' + Date.now());
     }
@@ -67,7 +67,7 @@ async function setupSession(
 ): Promise<void> {
   const setupResult = await session.send('Runtime.evaluate', {
     expression: `(() => {
-      const c = (window.__condenser ||= { core: {}, components: {} });
+      const c = (window.condenser ||= { core: {}, components: {} });
       if (c.core.setup) return true;
       c.core.setup = true;
       return false;
@@ -100,13 +100,13 @@ async function setupSession(
   await session.send('Page.enable');
   session.on('Page.loadEventFired', async () => {
     const result = await session.send('Runtime.evaluate', {
-      expression: '!!(window.__condenser?.core?.injected)',
+      expression: '!!(window.condenser?.core?.injected)',
       returnByValue: true,
     }).catch(() => null) as any;
     if (result?.result?.value) return;
 
     await session.send('Runtime.evaluate', {
-      expression: 'if (window.__condenser) window.__condenser.core.setup = false;',
+      expression: 'if (window.condenser) window.condenser.core.setup = false;',
       awaitPromise: false,
     }).catch(() => {});
 

@@ -20,6 +20,6 @@ export async function findSharedContextPage(browser: Browser): Promise<Page | nu
 
 export async function isCondenserBooted(page: Page): Promise<boolean> {
   return page
-    .evaluate(() => !!(window as any).__condenser?.core?.booted)
+    .evaluate(() => !!(window as any).condenser?.core?.booted)
     .catch(() => false);
 }

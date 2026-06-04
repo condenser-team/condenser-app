@@ -19,7 +19,7 @@ function makePatch(object: any, property: string, original: Function, fn: Functi
     hasUnpatched: false,
     unpatch() { unpatch(this); },
   };
-  (fn as any).__condenserPatch = patch;
+  (fn as any)._condenserPatch = patch;
   object[property] = fn;
   return patch;
 }
@@ -29,10 +29,10 @@ function unpatch(patch: Patch): void {
   let obj = patch.object;
   let prop: string = patch.property;
   while (obj[prop] && obj[prop] !== patch.patchedFunction) {
-    obj = (obj[prop] as any).__condenserPatch;
+    obj = (obj[prop] as any)._condenserPatch;
     prop = 'original';
   }
-  (obj as any)[prop] = (obj[prop] as any).__condenserPatch.original;
+  (obj as any)[prop] = (obj[prop] as any)._condenserPatch.original;
   patch.hasUnpatched = true;
 }
 

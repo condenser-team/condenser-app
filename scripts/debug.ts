@@ -98,12 +98,12 @@ async function cmdStatus(): Promise<void> {
 
   try {
     const state = await evaluate<any>(session, `JSON.stringify({
-      booted:       !!(window.__condenser?.core?.booted),
-      reactVersion: window.__condenser?.core?.React?.version ?? null,
-      tabPatched:   !!(window.__condenser?.core?.tabPatched),
-      wsUrl:        window.__condenser?.core?.url ?? null,
-      plugins:      Object.keys(window.__condenser?.components ?? {}),
-      hasQAM:       !!(window.__condenser?.core?.quickAccessMenuRenderer),
+      booted:       !!(window.condenser?.core?.booted),
+      reactVersion: window.condenser?.core?.React?.version ?? null,
+      tabPatched:   !!(window.condenser?.core?.tabPatched),
+      wsUrl:        window.condenser?.core?.url ?? null,
+      plugins:      Object.keys(window.condenser?.components ?? {}),
+      hasQAM:       !!(window.condenser?.core?.quickAccessMenuRenderer),
     })`);
 
     const s = JSON.parse(state);
@@ -180,14 +180,14 @@ async function cmdErrors(targetTitle?: string): Promise<void> {
     await session.send('Runtime.setAsyncCallStackDepth', { maxDepth: 8 }, EVAL_TIMEOUT_MS);
 
     const consoleErrors = await evaluate<string>(session, `JSON.stringify(
-      window.__condenser_debugErrors ?? []
+      window.condenser_debugErrors ?? []
     )`);
 
     await evaluate<string>(session, `
-      window.__condenser_debugErrors ??= [];
+      window.condenser_debugErrors ??= [];
       const orig = console.error.bind(console);
       console.error = (...args) => {
-        window.__condenser_debugErrors.push(args.map(String).join(' '));
+        window.condenser_debugErrors.push(args.map(String).join(' '));
         orig(...args);
       };
       'installed'
@@ -220,19 +220,19 @@ async function cmdCondenser(): Promise<void> {
 
   try {
     const raw = await evaluate<string>(session, `JSON.stringify({
-      booted:            !!(window.__condenser?.core?.booted),
-      setup:             !!(window.__condenser?.core?.setup),
-      tabPatched:        !!(window.__condenser?.core?.tabPatched),
-      pagePatched:       !!(window.__condenser?.core?.pagePatched),
-      csrfToken:         window.__condenser?.core?.csrfToken ? '(set)' : '(not set)',
-      wsUrl:             window.__condenser?.core?.url ?? null,
-      reactVersion:      window.__condenser?.core?.React?.version ?? null,
-      hasReactDOM:       !!(window.__condenser?.core?.ReactDOM),
-      hasQAMRenderer:    !!(window.__condenser?.core?.quickAccessMenuRenderer),
-      patchedTypeCache:  window.__condenser?.core?.patchedTypeCache?.size ?? 0,
-      webpackModules:    window.__condenser?.core?.webpackRegistry?.size ?? 0,
+      booted:            !!(window.condenser?.core?.booted),
+      setup:             !!(window.condenser?.core?.setup),
+      tabPatched:        !!(window.condenser?.core?.tabPatched),
+      pagePatched:       !!(window.condenser?.core?.pagePatched),
+      csrfToken:         window.condenser?.core?.csrfToken ? '(set)' : '(not set)',
+      wsUrl:             window.condenser?.core?.url ?? null,
+      reactVersion:      window.condenser?.core?.React?.version ?? null,
+      hasReactDOM:       !!(window.condenser?.core?.ReactDOM),
+      hasQAMRenderer:    !!(window.condenser?.core?.quickAccessMenuRenderer),
+      patchedTypeCache:  window.condenser?.core?.patchedTypeCache?.size ?? 0,
+      webpackModules:    window.condenser?.core?.webpackRegistry?.size ?? 0,
       components: Object.fromEntries(
-        Object.entries(window.__condenser?.components ?? {}).map(([id, ns]) => [id, {
+        Object.entries(window.condenser?.components ?? {}).map(([id, ns]) => [id, {
           hasComponent:    !!(ns?.component),
           key:             ns?.component?.key ?? null,
           hasPanel:        !!(ns?.component?.panel),
@@ -254,7 +254,7 @@ async function cmdReact(): Promise<void> {
 
   try {
     const raw = await evaluate<string>(session, `JSON.stringify((() => {
-      const React = window.__condenser?.core?.React;
+      const React = window.condenser?.core?.React;
       if (!React) return { error: 'React not found in condenser.core' };
 
       const rootEl = document.getElementById('root');
@@ -285,7 +285,7 @@ async function cmdReact(): Promise<void> {
         hostNodes,
         maxFiberDepth:      maxDepth,
         hasCreateRoot:      typeof React?.version >= '18',
-        hasConcurrentMode:  !!(window.__condenser?.core?.ReactDOM?.createRoot),
+        hasConcurrentMode:  !!(window.condenser?.core?.ReactDOM?.createRoot),
       };
     })())`);
     console.log(JSON.stringify(JSON.parse(raw), null, 2));
@@ -302,7 +302,7 @@ async function cmdRender(pluginId: string): Promise<void> {
 
   try {
     const raw = await evaluate<string>(session, `new Promise((resolve) => {
-        const c = window.__condenser;
+        const c = window.condenser;
         const React = c?.core?.React;
         const ReactDOM = c?.core?.ReactDOM;
         const ns = c?.components?.[${JSON.stringify(pluginId)}];
@@ -330,7 +330,7 @@ async function cmdRender(pluginId: string): Promise<void> {
         }
 
         const div = document.createElement('div');
-        div.id = '__condenser_render_test';
+        div.id = 'condenser_render_test';
         document.body.appendChild(div);
 
         const root = ReactDOM.createRoot(div);

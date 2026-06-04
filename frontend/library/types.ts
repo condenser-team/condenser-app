@@ -50,6 +50,42 @@ export interface CondenserNamespace {
   core: Partial<CondenserCore>;
   components: Record<string, PluginNamespace>;
   stylesheets: Map<string, StyleEntry>;
+  // Public API modules — exposed on the window so plugins can call them without bundling logic.
+  nav: {
+    navigate(path: string): void;
+    back(): void;
+    openQAM(): void;
+    openSideMenu(): void;
+    closeSideMenus(): void;
+  };
+  css: {
+    inject(pluginKey: string, css: string, target?: 'bpm' | 'qam' | 'main'): () => void;
+    createStyleToggle(pluginKey: string, css: string, target?: 'bpm' | 'qam' | 'main'): {
+      enable(): void;
+      disable(): void;
+      readonly enabled: boolean;
+    };
+  };
+  ui: {
+    showToast(options: { title: string; body?: string; duration?: number; sound?: number; playSound?: boolean; critical?: boolean }): void;
+    showModal(content: any, parent?: EventTarget, options?: { strTitle?: string }): void;
+    showContextMenu(children: any, parent?: EventTarget): void;
+    Focusable(props: Record<string, unknown>): any;
+    SidebarNavigation(props: Record<string, unknown>): any;
+    Tabs(props: Record<string, unknown>): any;
+    Menu(props: { label: string; children?: any }): any;
+    MenuItem(props: { onClick?: () => void; children?: any }): any;
+  };
+  events: {
+    UIMode: { readonly Unknown: -1; readonly GamePad: 4; readonly Desktop: 7 };
+    getUIMode(): Promise<-1 | 4 | 7 | null>;
+    onUIModeChanged(handler: (mode: -1 | 4 | 7) => void): () => void;
+    useQAMVisible(): boolean;
+  };
+  plugin: {
+    useSend(pluginId: string): (action: string, data?: unknown) => Promise<unknown>;
+    useMessage(pluginId: string, event: string, handler: (data: unknown) => void): void;
+  };
   plugins: {
     callPlugin: (route: string, params?: unknown) => Promise<unknown>;
     loadPlugin: (id: string, url: string) => Promise<void>;
@@ -62,6 +98,9 @@ export interface CondenserNamespace {
     findWebpackModuleByExport: (registry: Map<string, unknown>, filter: (e: unknown) => boolean) => unknown;
     findWebpackExport: (registry: Map<string, unknown>, filter: (e: unknown) => boolean) => unknown;
     findModuleDetailsByExport: (registry: Map<string, unknown>, filter: (e: unknown) => boolean) => [unknown, unknown] | null;
+    // Public API (condenser:steam) merged in so plugins can delegate without bundling the scanner.
+    classes: Record<string, string>;
+    resetClasses: () => void;
   };
   tab: {
     renderComponent: (id: string) => void;
@@ -83,5 +122,6 @@ export interface CondenserNamespace {
     findInElementTree: (node: unknown, filter: (n: unknown) => boolean) => unknown;
     wrapReactType: (node: unknown, prop?: string) => unknown;
     wrapReactClass: (node: unknown, prop?: string) => unknown;
+    createReactTreePatcher: (steps: any[], handler: (node: any) => any) => (tree: any) => any;
   };
 }

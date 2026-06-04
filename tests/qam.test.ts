@@ -28,14 +28,14 @@ test.afterAll(async () => {
 test.describe('QAM injection', () => {
   test('core.tabPatched is true after tab activation', async () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
-    const patched = await page.evaluate(() => !!(window as any).__condenser?.core?.tabPatched);
+    const patched = await page.evaluate(() => !!(window as any).condenser?.core?.tabPatched);
     expect(patched).toBe(true);
   });
 
   test('core.quickAccessMenuRenderer is discovered', async () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
     const found = await page.evaluate(
-      () => (window as any).__condenser?.core?.quickAccessMenuRenderer != null,
+      () => (window as any).condenser?.core?.quickAccessMenuRenderer != null,
     );
     expect(found).toBe(true);
   });
@@ -43,7 +43,7 @@ test.describe('QAM injection', () => {
   test('condenser-system component is loaded with tab and panel', async () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
     const result = await page.evaluate(() => {
-      const comp = (window as any).__condenser?.components?.['condenser-system']?.component;
+      const comp = (window as any).condenser?.components?.['condenser-system']?.component;
       return {
         hasTab: typeof comp?.tab === 'function',
         hasPanel: typeof comp?.panel === 'function',
@@ -56,7 +56,7 @@ test.describe('QAM injection', () => {
   test('loadPlugin calls ns.forceUpdate when registered, enabling live reload', async () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
     const result = await page.evaluate(async () => {
-      const c = (window as any).__condenser;
+      const c = (window as any).condenser;
       const ns = (c.components['condenser-system'] ||= {});
       ns.forceUpdaters ??= new Set();
       let called = false;

@@ -29,7 +29,7 @@ test.describe('Plugin RPC', () => {
   test('callPlugin resolves with expected data for a valid action', async () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
     const result = await page.evaluate(async () => {
-      const c = (window as any).__condenser;
+      const c = (window as any).condenser;
       return c.plugins.callPlugin('condenser-system', { action: 'getInfo' });
     });
     expect(result).toMatchObject({
@@ -45,7 +45,7 @@ test.describe('Plugin RPC', () => {
   test('callPlugin rejects for an unknown plugin', async () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
     const error = await page.evaluate(async () => {
-      const c = (window as any).__condenser;
+      const c = (window as any).condenser;
       return c.plugins
         .callPlugin('no-such-plugin', { action: 'test' })
         .then(() => null)
@@ -58,7 +58,7 @@ test.describe('Plugin RPC', () => {
   test('callPlugin rejects immediately when WebSocket is not connected', async () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
     const error = await page.evaluate(async () => {
-      const c = (window as any).__condenser;
+      const c = (window as any).condenser;
       const saved = c.core.ws;
       c.core.ws = null;
       try {

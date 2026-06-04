@@ -30,7 +30,7 @@ test.describe('Global Components', () => {
   test('condenser-system component has a persistent export', async () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
     const hasGlobal = await page.evaluate(() => {
-      const comp = (window as any).__condenser?.components?.['condenser-system']?.component;
+      const comp = (window as any).condenser?.components?.['condenser-system']?.component;
       return typeof comp?.persistent === 'function';
     });
     expect(hasGlobal).toBe(true);
@@ -47,7 +47,7 @@ test.describe('Global Components', () => {
   test('InjectedGlobal registers a forceUpdater for live reload', async () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
     const hasUpdater = await page.evaluate(() => {
-      const ns = (window as any).__condenser?.components?.['condenser-system'];
+      const ns = (window as any).condenser?.components?.['condenser-system'];
       return (ns?.forceUpdaters?.size ?? 0) > 0;
     });
     expect(hasUpdater).toBe(true);

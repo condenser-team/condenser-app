@@ -1,6 +1,8 @@
 /// <reference lib="dom" />
 import React, { useState, useEffect } from 'react';
-import { useSend, Focusable } from 'condenser:api';
+import { useSend } from '../../frontend/library/plugin.js';
+import { Focusable } from '../../frontend/library/ui.js';
+import { getCondenser } from '../../frontend/library/condenser.js';
 import type { RegistryPlugin, PluginVersion, MediaObject } from './backend.js';
 
 export const key   = 'condenser-manager';
@@ -350,9 +352,9 @@ export function Persistent(_: { websocketUrl: string }) {
   const [modal, setModal] = useState<{ content: any; title?: string } | null>(null);
 
   useEffect(() => {
-    (window as any).__condenser.core.showModal = (content: any, title?: string) =>
+    getCondenser().core.showModal = (content: any, title?: string) =>
       setModal({ content, title });
-    return () => { (window as any).__condenser.core.showModal = undefined; };
+    return () => { getCondenser().core.showModal = undefined; };
   }, []);
 
   const closeModal = () => setModal(null);

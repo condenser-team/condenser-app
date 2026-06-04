@@ -21,28 +21,14 @@ const allPluginsDirs = [
   ...(extraPluginsDir ? [extraPluginsDir] : []),
 ];
 
-// Resolve 'react', 'react/jsx-runtime', and 'condenser:api' to shim modules
-// so plugin code uses Steam's webpack-bundled React without bundling it.
+// Redirect 'react' imports to library/react.ts so plugin code uses
+// Steam's webpack-bundled React instance rather than bundling its own.
 const condenserShims: Plugin = {
   name: 'condenser-shims',
   enforce: 'pre',
   resolveId(id) {
     if (id === 'react') return path.join(__dirname, 'library/react.ts');
     if (id === 'react/jsx-runtime' || id === 'react/jsx-dev-runtime') return path.join(__dirname, 'library/react-jsx.ts');
-    if (id.startsWith('condenser:')) {
-      const sub = id.slice('condenser:'.length); // 'api', 'nav', 'css', 'ui', 'plugin', 'steam', 'events'
-      const fileMap: Record<string, string> = {
-        api:    'api',
-        nav:    'nav',
-        plugin: 'plugin',
-        ui:     'ui',
-        css:    'css',
-        steam:  'steam-api',  // avoids collision with internal steam.ts webpack utilities
-        events: 'events',
-      };
-      const file = fileMap[sub] ?? sub;
-      return path.join(__dirname, `library/${file}.ts`);
-    }
     return null;
   },
   configureServer(server) {

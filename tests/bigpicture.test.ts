@@ -28,14 +28,14 @@ test.afterAll(async () => {
 test.describe('Big Picture router', () => {
   test('core.pagePatched is true after router patching', async () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
-    const patched = await page.evaluate(() => !!(window as any).__condenser?.core?.pagePatched);
+    const patched = await page.evaluate(() => !!(window as any).condenser?.core?.pagePatched);
     expect(patched).toBe(true);
   });
 
   test('condenser-system component is loaded with route and page', async () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
     const result = await page.evaluate(() => {
-      const comp = (window as any).__condenser?.components?.['condenser-system']?.component;
+      const comp = (window as any).condenser?.components?.['condenser-system']?.component;
       return {
         route: comp?.route,
         hasPage: typeof comp?.page === 'function',

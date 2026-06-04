@@ -8,18 +8,18 @@ export function getReactInstance(element: Element): any {
 }
 
 // Wraps node[prop] in a plain object copy so patches don't mutate the original type.
-// Marks the wrapper with __condenserWrapped to avoid double-wrapping.
+// Marks the wrapper with _condenserWrapped to avoid double-wrapping.
 export function wrapReactType(node: any, prop: string = 'type'): any {
-  if (node[prop]?.__condenserWrapped) return node[prop];
-  return (node[prop] = { ...node[prop], __condenserWrapped: true });
+  if (node[prop]?._condenserWrapped) return node[prop];
+  return (node[prop] = { ...node[prop], _condenserWrapped: true });
 }
 
 // Wraps node[prop] (a class component) in an anonymous subclass so patches target the
 // subclass without affecting any other render paths that share the original class.
 export function wrapReactClass(node: any, prop: string = 'type'): any {
-  if (node[prop]?.__condenserWrapped) return node[prop];
+  if (node[prop]?._condenserWrapped) return node[prop];
   const cls = node[prop];
-  const wrapped = class extends cls { static __condenserWrapped = true; };
+  const wrapped = class extends cls { static _condenserWrapped = true; };
   return (node[prop] = wrapped);
 }
 
