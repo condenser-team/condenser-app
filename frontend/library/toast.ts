@@ -22,7 +22,6 @@ function cx(...names: (string | undefined | null | false)[]): string {
 }
 
 // Lazy — discovered once from the webpack CSS module that owns ShortTemplate.
-// Mirrors Decky's findClassModule((m) => m.ShortTemplate).
 let tc: any = null;
 function getTemplateClasses(): any {
   if (tc) return tc;
@@ -39,8 +38,6 @@ export function initToaster(): void {
   const reg = getCondenser().core.webpackRegistry;
   if (!reg) { console.warn('[condenser] toast: Webpack registry not ready'); return; }
 
-  // Fingerprint from Decky: the renderer wraps each notification group and includes
-  // a hardcoded controller/method string in its minified source.
   const ValveToastRenderer = findWebpackExport(reg, (e: any) =>
     typeof e === 'function' && e?.toString?.()?.includes('controller:"notification",method:'),
   );

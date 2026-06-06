@@ -7,6 +7,91 @@ export interface StyleEntry {
   el: HTMLStyleElement;
 }
 
+/**
+ * CSS properties as a camelCase JavaScript object — the same notation as inline
+ * `element.style` or React's `style` prop.
+ *
+ * Keys are camelCase CSS property names (`borderRadius`, `backgroundColor`) or
+ * CSS custom properties starting with `--`.  Values are strings or numbers
+ * (numbers are passed through as-is, e.g. `10` → `"10"` in the output CSS).
+ *
+ * @example
+ * const style: StyleProperties = {
+ *   borderRadius: '10px',
+ *   color: 'white',
+ *   '--my-accent': '#4fc3f7',
+ * };
+ */
+export type StyleProperties = Record<string, string | number>;
+
+/**
+ * A map of CSS selectors to property bags — analogous to a CSS stylesheet.
+ * Each key is a CSS selector; the value is a `StyleProperties` object.
+ *
+ * When passed to `inject()` / `createStyleToggle()` with a section target,
+ * every selector is automatically prefixed with the section's scope selector.
+ *
+ * @example
+ * const sheet: StyleSheet = {
+ *   '.Panel':  { borderRadius: '10px', overflow: 'hidden' },
+ *   '.Header': { color: 'white', fontSize: '16px' },
+ * };
+ */
+export type StyleSheet = Record<string, StyleProperties>;
+
+/**
+ * CSS source accepted by `inject`, `createStyleToggle`, etc.
+ *
+ * - `StyleProperties` — flat property bag applied to the target section's root element,
+ *   e.g. `{ borderRadius: '10px', color: 'white' }`
+ * - `StyleSheet`      — map of CSS selector → property bag; each selector is automatically
+ *   scoped to the target section when a section target is used,
+ *   e.g. `{ '.Panel': { borderRadius: '10px' }, '.Header': { color: 'white' } }`
+ */
+export type CSSSource = StyleProperties | StyleSheet;
+
+/**
+ * CSS injection target. Use the Target constants from condenser.css for discoverability.
+ *
+ * Real injectable windows (each is a separate CEF popup):
+ *   'big-picture'     — Main BPM window (matched by title "Steam Big Picture Mode")
+ *   'main-menu'       — Steam button overlay (STEAM button; popup key starts with "MainMenu")
+ *   'quick-access'    — Quick Access Menu (controller button; popup key starts with "QuickAccess")
+ *   'keyboard'        — On-screen keyboard popup
+ *   'overlay-browser' — In-game overlay browser (only while a game runs)
+ *   'store'           — Steam Store popup (URL-matched: store.steampowered.com or steamcommunity.com)
+ *
+ * Compound (expands to multiple windows on inject):
+ *   'global' — big-picture + main-menu + quick-access
+ */
+export type CSSTarget =
+  | 'big-picture' | 'quick-access' | 'main-menu' | 'keyboard' | 'overlay-browser' | 'store'
+  | 'global';
+
+/**
+ * Scoped injection target — injects into a window AND auto-prefixes every CSS rule
+ * with a selector so styles only affect the specified parent element.
+ *
+ * @example
+ * const { inject, Target } = condenser.css;
+ * const libraryClass = condenser.steam.classes['libraryRoot'];
+ *
+ * // Only affects elements inside the Library container:
+ * const cleanup = inject(key,
+ *   { '.Panel': { borderRadius: '10px' } },
+ *   { window: Target.BigPicture, scope: '.libraryRoot' },
+ * );
+ */
+export interface CSSTargetSpec {
+  /** Which CEF window(s) to inject into. Accepts any CSSTarget value or array. */
+  window: CSSTarget | readonly CSSTarget[];
+  /** CSS selector prepended to every rule in the stylesheet. ':root' maps to this selector. */
+  scope: string;
+}
+
+/** All accepted forms for the target parameter on inject / createStyleToggle / createStyleVars. */
+export type CSSTargetInput = CSSTarget | readonly CSSTarget[] | CSSTargetSpec;
+
 export interface PluginComponent {
   key: string;
   title?: string;
@@ -59,11 +144,62 @@ export interface CondenserNamespace {
     closeSideMenus(): void;
   };
   css: {
-    inject(pluginKey: string, css: string, target?: 'bpm' | 'qam' | 'main'): () => void;
-    createStyleToggle(pluginKey: string, css: string, target?: 'bpm' | 'qam' | 'main'): {
+    /**
+     * Injection targets for the Steam Big Picture Mode UI.
+     *
+     * **Window targets** (strings) — inject globally into a CEF popup window:
+     *   `BigPicture`, `MainMenu`, `QuickAccess`, `Keyboard`, `OverlayBrowser`, `Global`
+     *
+     * **Section targets** (`CSSTargetSpec`) — carry `{ window, scope }` automatically.
+     * The `scope` is a `[class*="..."]` selector that constrains injected CSS to only
+     * that section's root container (Library styles cannot bleed into Settings, etc.):
+     *   `Background`, `Downloads`, `Friends`, `Home`, `Library`, `LockScreen`,
+     *   `Media`, `Settings`, `Store`
+     */
+    Target: {
+      // ---- Window targets (raw CEF popup identifiers) ----
+      readonly BigPicture:     'big-picture';
+      readonly MainMenu:       'main-menu';
+      readonly QuickAccess:    'quick-access';
+      readonly Keyboard:       'keyboard';
+      readonly OverlayBrowser: 'overlay-browser';
+      readonly Global:         'global';
+      // ---- Section targets (scoped to BPM section root via [class*="..."] selector) ----
+      readonly Background: CSSTargetSpec;
+      readonly Downloads:  CSSTargetSpec;
+      readonly Friends:    CSSTargetSpec;
+      readonly Home:       CSSTargetSpec;
+      readonly Library:    CSSTargetSpec;
+      readonly LockScreen: CSSTargetSpec;
+      readonly Media:      CSSTargetSpec;
+      readonly Settings:   CSSTargetSpec;
+      readonly Store:      CSSTargetSpec;
+    };
+    /**
+     * Inject styles into a target window/section and return a cleanup function.
+     *
+     * `source` accepts:
+     * - `StyleProperties` — `{ borderRadius: '10px' }` — applied to the section root element
+     * - `StyleSheet`      — `{ '.Panel': { borderRadius: '10px' } }` — each rule scoped to section
+     *
+     * When a section target (e.g. `Target.Library`) is used, styles are automatically
+     * constrained to that section and cannot affect other parts of the UI.
+     */
+    inject(pluginKey: string, source: CSSSource, target?: CSSTargetInput): () => void;
+    /** Create an enable/disable toggle for a style injection. Same source types as `inject()`. */
+    createStyleToggle(pluginKey: string, source: CSSSource, target?: CSSTargetInput): {
       enable(): void;
       disable(): void;
       readonly enabled: boolean;
+    };
+    /**
+     * Create a set of CSS custom properties (variables) that can be updated live.
+     * Variables are injected as a `:root { --key: value; }` block (or scoped to the
+     * target section's root when a section target with a real scope is used).
+     */
+    createStyleVars(pluginKey: string, vars: Record<string, string>, target?: CSSTargetInput): {
+      update(vars: Record<string, string>): void;
+      remove(): void;
     };
   };
   ui: {
@@ -75,6 +211,13 @@ export interface CondenserNamespace {
     Tabs(props: Record<string, unknown>): any;
     Menu(props: { label: string; children?: any }): any;
     MenuItem(props: { onClick?: () => void; children?: any }): any;
+    cls: {
+      readonly btnSecondary: string;
+      readonly btnPrimary:   string;
+      readonly textInput:    string;
+      readonly inputWrapper: string;
+      readonly focusable:    string;
+    };
   };
   events: {
     UIMode: { readonly Unknown: -1; readonly GamePad: 4; readonly Desktop: 7 };

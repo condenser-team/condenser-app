@@ -5,6 +5,24 @@ import { findWebpackExport, findModuleDetailsByExport, findWebpackModuleByExport
 export { showToast } from './toast.js';
 export type { ToastOptions } from './toast.js';
 
+/**
+ * Typed Steam design-system class name constants.
+ * Use these in JSX `className` props instead of bare strings.
+ *
+ * @example
+ * <button className={cls.btnSecondary}>Click me</button>
+ * <button className={`${cls.btnPrimary} ${cls.focusable}`}>Click me</button>
+ */
+export const cls = {
+  btnSecondary: 'DialogButton _DialogLayout Secondary',
+  btnPrimary:   'DialogButton _DialogLayout Primary',
+  textInput:    'DialogInput DialogInputPlaceholder DialogTextInputBase Focusable',
+  inputWrapper: 'DialogInput_Wrapper _DialogLayout Panel',
+  focusable:    'Focusable',
+} as const;
+
+export type SteamClassName = (typeof cls)[keyof typeof cls];
+
 function getRegistry(): Map<string, any> | undefined {
   return getCondenser().core.webpackRegistry;
 }

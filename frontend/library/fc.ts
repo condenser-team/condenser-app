@@ -64,7 +64,6 @@ export interface FCTrampoline {
  * which supports full hooks.
  *
  * Only use this where patching a function component is unavoidable (e.g. ValveToastRenderer).
- * Mirrors Decky's injectFCTrampoline — see decky-frontend-lib/src/utils/react/fc.ts.
  */
 export function injectFCTrampoline(component: any, customHooks?: any): FCTrampoline {
   const condenser = getCondenser();

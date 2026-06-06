@@ -13,7 +13,7 @@ export function initErrorBoundary(): void {
   const reg = getCondenser().core.webpackRegistry;
   if (!reg) return;
 
-  // Find the ErrorReportingStore factory — Decky fingerprint.
+  // Find the ErrorReportingStore factory
   const exp = /^\(\)=>\(.\|\|.\(new .\),.\)$/;
   const initStore = findWebpackExport(reg, (e: any) =>
     typeof e === 'function' && exp.test(e.toString?.() ?? ''),

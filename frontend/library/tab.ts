@@ -15,8 +15,6 @@ function getQAMVisibleContext(): any {
 }
 
 // Wrap each plugin panel so it can expose QAM open/close state to descendant components.
-// Mirrors Decky's QuickAccessVisibleStateProvider — sets tab.qAMVisibilitySetter so the
-// appendTab render loop can signal visibility changes without needing a second context.
 function QAMVisibilityProvider(props: { tab: any; children: any }): any {
   const React = getCondenser().core.React!;
   const [visible, setVisible] = React.useState(props.tab.initialVisibility ?? false);

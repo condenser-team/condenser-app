@@ -5,7 +5,7 @@ import { wrapReactClass, wrapReactType } from './tree.js';
 export type NodeStep = (node: any) => any;
 export type PatchHandler = (args: any[], returnValue: any) => any;
 
-// Mirrors Decky's treepatcher.ts — creates a chained afterPatch handler that traverses
+// creates a chained afterPatch handler that traverses
 // a React element tree step-by-step and patches the component found at each stage.
 // Each step is a finder function (node) => targetNode; the final step applies handler.
 // Per-step caches prevent re-patching the same component type on repeated renders.

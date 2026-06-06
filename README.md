@@ -70,7 +70,7 @@ Hot Module Replacement works end-to-end: editing a plugin file reloads only that
 ```
 Steam (Chromium)
 └── SharedJSContext ← CDP injection point
-    └── condenser shim (frontend/index.ts)
+    └── window.condenser  (frontend/index.ts)
         ├── steam.ts      discover React, webpack registry, router
         ├── tab.ts        patch Quick Access Menu — add Tab and Panel surfaces
         ├── page.ts       inject Page routes into Big Picture / SteamOS router
@@ -80,9 +80,9 @@ Steam (Chromium)
         └── loader.ts     load plugin frontends, route WS calls to backend
 
 Condenser server (Node.js / backend/)
-├── server.ts       HTTPS + WebSocket server, serves frontend build
-├── target.ts       CDP scan — find SharedJSContext, inject shim
-├── ws-router.ts    route plugin RPC calls to plugin backends
+├── server.ts         HTTPS + WebSocket server, serves frontend build
+├── target.ts         CDP scan — find SharedJSContext, inject shim
+├── ws-router.ts      route plugin RPC calls to plugin backends
 └── plugin-loader.ts  load and call compiled plugin backends
 ```
 
@@ -217,13 +217,22 @@ Condenser uses **presence-based detection**: whichever surfaces your `frontend.t
 
 A single plugin can export any combination of surfaces.
 
+#### Plugin API (`window.condenser`)
+
+Condenser injects a `condenser` global into Steam's browser context before any plugin loads. Plugins access the API by destructuring from it — no imports required.
+
+```typescript
+const { navigate, back } = condenser.nav;
+const { showToast, showModal, Focusable } = condenser.ui;
+const { createStyleToggle } = condenser.css;
+```
+
 #### Quick Access Menu (`Tab` + `Panel`)
 
 ```typescript
 // plugins/my-plugin/frontend.tsx
 /// <reference lib="dom" />
 import React, { useEffect, useState } from 'react';
-import { useSend } from 'condenser:api';
 
 export const key   = 'my-plugin';
 export const title = 'My Plugin';
@@ -231,7 +240,7 @@ export const title = 'My Plugin';
 export const Tab = () => React.createElement('span', null, '⚡');
 
 export function Panel() {
-  const send = useSend('my-plugin');
+  const send = condenser.plugin.useSend('my-plugin');
   const [info, setInfo] = useState<{ platform: string } | null>(null);
 
   useEffect(() => {
@@ -246,19 +255,18 @@ export function Panel() {
 
 #### Big Picture / SteamOS page (`route` + `Page`)
 
-Export `route` and a `Page` component. Use `navigate` to open the page and `back` to close it.
+Export `route` and a `Page` component. Use `condenser.nav` to open the page and navigate back.
 
 ```typescript
 // plugins/my-plugin/frontend.tsx
 /// <reference lib="dom" />
 import React from 'react';
-import { back } from 'condenser:api';
 
 export const route = '/my-plugin/home';
 
 export function Page() {
   return React.createElement('div', { style: { padding: 24, color: 'white' } },
-    React.createElement('button', { onClick: back }, '← Back'),
+    React.createElement('button', { onClick: condenser.nav.back }, '← Back'),
     React.createElement('h1', null, 'My Plugin'),
   );
 }
@@ -267,8 +275,7 @@ export function Page() {
 To navigate to the page from a Panel:
 
 ```typescript
-import { navigate } from 'condenser:api';
-navigate('/my-plugin/home');
+condenser.nav.navigate('/my-plugin/home');
 ```
 
 #### Always-on overlay (`Persistent`)
@@ -292,55 +299,176 @@ export function Persistent() {
 }
 ```
 
-#### Plugin API (`condenser:api`)
+#### Lifecycle hooks
 
-**Hooks**
+Export `onMount` and `onUnmount` alongside your surfaces. Condenser calls them automatically — `onUnmount` is guaranteed to run before any disable or hot-reload.
 
-| Export | Description |
+```typescript
+export function onMount(): void {
+  // plugin enabled or first load — start timers, subscribe to events, etc.
+}
+
+export function onUnmount(): void {
+  // plugin disabled or hot-reloaded — clean up CSS, patches, timers
+}
+```
+
+#### CSS injection
+
+Use `condenser.css` to inject styles into Steam windows. Styles are always defined as JavaScript objects — never raw CSS strings.
+
+Two source formats are accepted:
+
+- **`StyleProperties`** — flat camelCase property bag applied to the target element itself  
+  `{ borderRadius: '10px', color: 'white' }`
+- **`StyleSheet`** — map of CSS selector → property bag; when a section target is used, selectors are automatically scoped to that section's root element  
+  `{ '.Panel': { borderRadius: '10px' }, '.Header': { color: 'white' } }`
+
+##### Targets
+
+The `Target` constant lists every injectable location. Pass it as the third argument to `inject`, `createStyleToggle`, and `createStyleVars`.
+
+**Window targets** — inject globally into a whole CEF popup window:
+
+| Target | Window |
+|--------|--------|
+| `Target.BigPicture` | Main BPM window |
+| `Target.MainMenu` | Steam button overlay (home/STEAM button) |
+| `Target.QuickAccess` | Quick Access Menu (controller right button) |
+| `Target.Keyboard` | On-screen keyboard popup |
+| `Target.OverlayBrowser` | In-game overlay browser (game must be running) |
+| `Target.Global` | BigPicture + MainMenu + QuickAccess simultaneously |
+
+**Section targets** — styles are auto-scoped to that section's root element. These use `[class*="module_ClassName_"]` selectors that are only reliable on SteamOS/Steam Deck; class names are obfuscated on desktop Steam:
+
+`Target.Background`, `Target.Downloads`, `Target.Friends`, `Target.Home`, `Target.Library`, `Target.LockScreen`, `Target.Media`, `Target.Settings`, `Target.Store`
+
+**Custom scope** — pass a `CSSTargetSpec` to target any selector, including stable IDs and `aria-label` attributes that work on all platforms:
+
+```typescript
+const { inject, Target } = condenser.css;
+
+// Stable selectors — work on desktop Steam and SteamOS alike:
+inject(key, { outline: '3px solid red' }, { window: Target.BigPicture, scope: '#header' });
+inject(key, { outline: '3px solid blue' }, { window: Target.BigPicture, scope: '#Main' });
+inject(key, { filter: 'sepia(0.6)' }, { window: Target.BigPicture, scope: '[aria-label="Recent Games"]' });
+```
+
+##### createStyleToggle
+
+The recommended pattern for styles that need to be enabled and disabled at runtime. The toggle object is safe to create outside React — its state survives hot-reload as long as you call `disable()` in `onUnmount`.
+
+```typescript
+const { createStyleToggle, Target } = condenser.css;
+
+const headerStyle = createStyleToggle(
+  'my-plugin',
+  { outline: '3px solid #ff6b6b', outlineOffset: '-3px' },
+  { window: Target.BigPicture, scope: '#header' },
+);
+
+headerStyle.enable();
+headerStyle.disable();
+console.log(headerStyle.enabled); // boolean
+
+export function onUnmount() {
+  headerStyle.disable();
+}
+```
+
+StyleSheet syntax for scoped multi-selector rules:
+
+```typescript
+const settingsStyle = createStyleToggle(
+  'my-plugin',
+  {
+    '> *':     { outline: '1px dashed rgba(255,100,100,0.8)' },
+    '> * > *': { backgroundColor: 'rgba(255,100,100,0.05)' },
+  },
+  Target.Settings, // SteamOS only
+);
+```
+
+##### inject
+
+One-shot injection — returns a cleanup function to remove the style later.
+
+```typescript
+const { inject, Target } = condenser.css;
+
+// Whole BPM window — font applied globally:
+const remove = inject('my-plugin', { fontFamily: 'Inter, sans-serif' }, Target.Global);
+
+// Section-scoped (SteamOS only):
+const remove2 = inject('my-plugin', { filter: 'sepia(0.6)' }, Target.Library);
+
+// Custom scope — stable cross-platform selector:
+const remove3 = inject('my-plugin',
+  { outline: '3px solid #4fc3f7', outlineOffset: '-3px' },
+  { window: Target.BigPicture, scope: '#Main' },
+);
+
+// Later: remove(); remove2(); remove3();
+```
+
+##### createStyleVars
+
+Injects CSS custom properties that can be updated live without removing and re-injecting the style block.
+
+```typescript
+const { createStyleVars, Target } = condenser.css;
+
+const vars = createStyleVars('my-plugin', {
+  '--accent': '#4fc3f7',
+  '--radius': '10px',
+}, Target.BigPicture);
+
+vars.update({ '--accent': '#ff6b6b', '--radius': '4px' }); // live update
+vars.remove(); // cleanup
+```
+
+Injected `<style>` elements are tagged with `data-condenser-plugin="my-plugin"` for DevTools identification.
+
+#### Navigation API
+
+| Method | Description |
 |--------|-------------|
-| `useSend(pluginId)` | Returns a `send(action, data?)` function that calls your backend |
-| `useMessage(pluginId, event, handler)` | Subscribe to server-push events from your backend |
+| `condenser.nav.navigate(path)` | Open a Big Picture page by route |
+| `condenser.nav.back()` | Close the current Big Picture page |
+| `condenser.nav.openQAM()` | Open the Quick Access Menu |
+| `condenser.nav.openSideMenu()` | Open the Steam side menu |
+| `condenser.nav.closeSideMenus()` | Close all side menus |
 
-**Navigation**
+#### Plugin hooks
 
-| Export | Description |
+| Method | Description |
 |--------|-------------|
-| `navigate(path)` | Open a Big Picture page by route |
-| `back()` | Close the current Big Picture page |
-| `openQAM()` | Open the Quick Access Menu |
-| `openSideMenu()` | Open the Steam side menu |
-| `closeSideMenus()` | Close all side menus |
+| `condenser.plugin.useSend(pluginId)` | Returns a `send(action, data?)` function that calls your backend |
+| `condenser.plugin.useMessage(pluginId, event, handler)` | Subscribe to server-push events from your backend |
 
-**Imperative UI**
+#### UI API
 
-| Export | Description |
+| Method | Description |
 |--------|-------------|
-| `showToast({ title, body?, duration?, sound?, playSound?, critical? })` | Show a native Steam toast notification with sound, visible over the QAM |
-| `showModal(content, parent?, { strTitle? })` | Show a modal dialog using Steam's modal system |
-| `showContextMenu(children, parent?)` | Open a Steam-native context menu anchored to an element |
-
-**Steam UI components**
-
-| Export | Description |
-|--------|-------------|
-| `Focusable` | Enables gamepad d-pad navigation between child elements |
-| `SidebarNavigation` | Collapsible left-hand nav across sub-pages (for use in BPM pages) |
-| `Menu` | Container for context menu items |
-| `MenuItem` | Individual item inside a `Menu` |
+| `condenser.ui.showToast({ title, body?, duration?, sound?, playSound?, critical? })` | Show a native Steam toast notification |
+| `condenser.ui.showModal(content, parent?, { strTitle? })` | Show a modal dialog |
+| `condenser.ui.showContextMenu(children, parent?)` | Open a Steam-native context menu |
+| `condenser.ui.Focusable` | Enables gamepad d-pad navigation between child elements |
+| `condenser.ui.SidebarNavigation` | Collapsible left-hand nav across sub-pages |
+| `condenser.ui.Menu` | Container for context menu items |
+| `condenser.ui.MenuItem` | Individual item inside a `Menu` |
 
 #### Toast notifications
 
 ```typescript
-import { showToast } from 'condenser:api';
-
 // Minimal — title only
-showToast({ title: 'My Plugin' });
+condenser.ui.showToast({ title: 'My Plugin' });
 
 // With body and custom duration
-showToast({ title: 'Download complete', body: 'my-mod-v1.2.zip', duration: 4000 });
+condenser.ui.showToast({ title: 'Download complete', body: 'my-mod-v1.2.zip', duration: 4000 });
 
 // Silent
-showToast({ title: 'Background sync', playSound: false });
+condenser.ui.showToast({ title: 'Background sync', playSound: false });
 ```
 
 Toasts appear using Steam's native `ValveToastRenderer` and `NotificationStore`, so they render over the QAM, play Steam's notification sound, and animate with the same timing as system notifications.
