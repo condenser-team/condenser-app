@@ -7,32 +7,32 @@ export type { CSSSource, CSSTarget, CSSTargetInput, CSSTargetSpec, StyleEntry, S
 // ---- Target constants ----
 
 /**
- * Injection targets for the Steam Big Picture Mode UI.
+ * Injection targets for the Steam UI.
  *
  * ## Window targets (strings)
  * Inject globally into a CEF popup window — no CSS scoping applied.
  * Use these for changes that span an entire window (fonts, colours, animations).
  *
- *   `BigPicture`     — Main BPM window ("Steam Big Picture Mode")
- *   `MainMenu`       — Steam button overlay (STEAM / home button)
- *   `QuickAccess`    — Quick Access Menu (controller right-side button)
+ *   `BigPicture`     — Main Steam window (BPM or Desktop)
+ *   `MainMenu`       — Steam button overlay / STEAM button (BPM only)
+ *   `QuickAccess`    — Quick Access Menu / controller right-side button (BPM only)
  *   `Keyboard`       — On-screen keyboard popup
  *   `OverlayBrowser` — In-game overlay browser (only while a game is running)
  *   `Global`         — BigPicture + MainMenu + QuickAccess simultaneously
  *
  * ## Section targets (CSSTargetSpec objects)
- * Each carries `{ window, scope }`. The `scope` is a `[class*="…"]` selector that
- * matches the section's root container, automatically constraining injected styles
- * so they cannot bleed into other areas of the UI.
+ * Each carries `{ window, scope }`. The `scope` selector constrains injected styles
+ * to a specific section's root container.
  *
- * Steam class names follow the pattern `module_ClassName_HASH`. The selector uses
- * only the hash-independent `module_ClassName_` prefix so it survives Steam updates.
+ * On SteamOS class names follow `module_ClassName_HASH`; on Desktop/macOS they are
+ * pure hashes. Section targets resolve the correct class name at runtime from the
+ * webpack bundle so they work on both platforms.
  *
  * @example
  * const { inject, createStyleToggle, Target } = condenser.css;
  *
- * // Whole BPM UI — fonts, global colours, border-radius:
- * inject(key, { fontFamily: 'Inter, sans-serif' }, Target.Global);
+ * // Whole main Steam window — fonts, global colours, border-radius:
+ * inject(key, { fontFamily: 'Inter, sans-serif' }, Target.BigPicture);
  *
  * // Library section only — CSS is scoped automatically:
  * createStyleToggle(key, { '.Panel': { borderRadius: '10px' } }, Target.Library);
@@ -40,58 +40,84 @@ export type { CSSSource, CSSTarget, CSSTargetInput, CSSTargetSpec, StyleEntry, S
  * // Section root element directly:
  * inject(key, { backgroundColor: 'rgba(0,0,0,0.5)' }, Target.Home);
  */
+
+/**
+ * Builds a CSS scope selector by looking up class name(s) from the webpack CSS module
+ * registry at call time. Falls back to a SteamOS-style prefix selector when the
+ * registry is not yet available or returns no results.
+ *
+ * On macOS, Steam CSS class names are pure hashes (no module prefix). On SteamOS they
+ * follow `module_ClassName_HASH`. This helper handles both cases.
+ */
+function buildSectionScope(semanticKeys: readonly string[], steamOsFallback: string): string {
+  try {
+    const classes = getCondenser().steam.classes;
+    const parts = semanticKeys
+      .map(k => classes[k])
+      .filter((c): c is string => typeof c === 'string' && c.length > 0)
+      .map(c => `[class*="${c}"]`);
+    if (parts.length > 0) return parts.join(', ');
+  } catch (_) {}
+  return steamOsFallback;
+}
+
 export const Target = {
   // ---- Window targets (raw CEF popup identifiers) ----
 
-  /** Main Big Picture Mode window. */
-  BigPicture:     'big-picture',
-  /** Steam button overlay (opened with the STEAM / home button). */
-  MainMenu:       'main-menu',
-  /** Quick Access Menu (opened with the controller right-side button). */
-  QuickAccess:    'quick-access',
+  /** Main Steam window — BPM ("Steam Big Picture Mode") or Desktop ("Steam"). */
+  BigPicture:     'big-picture' as const,
+  /** Steam button overlay (opened with the STEAM / home button). BPM only. */
+  MainMenu:       'main-menu' as const,
+  /** Quick Access Menu (opened with the controller right-side button). BPM only. */
+  QuickAccess:    'quick-access' as const,
   /** On-screen keyboard popup. */
-  Keyboard:       'keyboard',
+  Keyboard:       'keyboard' as const,
   /** In-game overlay browser. Only present while a game is running. */
-  OverlayBrowser: 'overlay-browser',
+  OverlayBrowser: 'overlay-browser' as const,
   /** Injects into BigPicture + MainMenu + QuickAccess simultaneously. */
-  Global:         'global',
+  Global:         'global' as const,
 
-  // ---- Section targets (scoped to each BPM section's root element) ----
+  // ---- Section targets (scoped to each section's root element) ----
   //
-  // Scope pattern: [class*="module_ClassName_"]
-  // Steam generates class names as `module_ClassName_HASH`. The [class*="…"] substring
-  // selector ignores the hash suffix so scopes stay valid across Steam updates.
+  // Scope selectors are resolved at call time from the webpack CSS module registry.
+  // This handles both SteamOS (module_ClassName_HASH) and macOS (pure hash) class formats.
 
-  /** Recent-games / lock-screen background area. Scope: `gamepadhomerecentgames_RecentGamesBackground_*` */
-  Background: { window: 'big-picture', scope: '[class*="gamepadhomerecentgames_RecentGamesBackground_"]' },
+  /** Recent-games / lock-screen background area. */
+  Background: { window: 'big-picture' as const, scope: '[class*="gamepadhomerecentgames_RecentGamesBackground_"]' },
 
-  /** Downloads tab (queue, progress bars, uninstalled list). Scope: `downloads_DownloadsPage_*` */
-  Downloads:  { window: 'big-picture', scope: '[class*="downloads_DownloadsPage_"]' },
+  /** Downloads tab (queue, progress bars, uninstalled list). */
+  Downloads:  { window: 'big-picture' as const, scope: '[class*="downloads_DownloadsPage_"]' },
 
-  /** Friends & Chat panel. Scope: `friendslist_FriendsChatsContainer_*` */
-  Friends:    { window: 'big-picture', scope: '[class*="friendslist_FriendsChatsContainer_"]' },
+  /** Friends & Chat panel. */
+  Friends:    { window: 'big-picture' as const, scope: '[class*="friendslist_FriendsChatsContainer_"]' },
 
-  /** Home tab (Recent Games carousel + What's New feed). Scope: `gamepadhome_TabbedContent_*` */
-  Home:       { window: 'big-picture', scope: '[class*="gamepadhome_TabbedContent_"]' },
+  /** Home tab (Recent Games carousel + What's New feed). */
+  Home:       { window: 'big-picture' as const, scope: '[class*="gamepadhome_TabbedContent_"]' },
 
-  /** Library tab (game grid / list + app details). Scope: `gamepadlibrary_GamepadLibrary_*` */
-  Library:    { window: 'big-picture', scope: '[class*="gamepadlibrary_GamepadLibrary_"]' },
+  /** Library tab (game grid / list + app details). Scope resolved at runtime from webpack. */
+  get Library(): CSSTargetSpec {
+    return { window: 'big-picture', scope: buildSectionScope(['GamepadLibrary', 'Library'], '[class*="gamepadlibrary_GamepadLibrary_"]') };
+  },
 
-  /** Lock screen overlay (shown when the device is locked). Scope: `lockscreen_Container_*` */
-  LockScreen: { window: 'big-picture', scope: '[class*="lockscreen_Container_"]' },
+  /** Lock screen overlay (shown when the device is locked). */
+  LockScreen: { window: 'big-picture' as const, scope: '[class*="lockscreen_Container_"]' },
 
-  /** Media tab (screenshots, videos). Scope: `mediapage_MediaPage_*` */
-  Media:      { window: 'big-picture', scope: '[class*="mediapage_MediaPage_"]' },
+  /** Media tab (screenshots, videos). */
+  Media:      { window: 'big-picture' as const, scope: '[class*="mediapage_MediaPage_"]' },
 
-  /** Settings dialog. Scope: `gamepadpagedsettings_PagedSettingsDialog_*` */
-  Settings:   { window: 'big-picture', scope: '[class*="gamepadpagedsettings_PagedSettingsDialog_"]' },
+  /** Settings dialog — full page including the left nav menu. Uses :has(.PageListColumn) to
+   *  distinguish the inner-width wrapper that contains both columns from the one that wraps
+   *  just the content panel. :has() is supported in Steam's CEF (Chrome 105+). */
+  get Settings(): CSSTargetSpec {
+    return { window: 'big-picture', scope: '.DialogContent_InnerWidth:has(.PageListColumn)' };
+  },
 
   /**
    * Steam Store — a separate CEF popup identified by URL (store.steampowered.com /
    * steamcommunity.com), not by a Steam class. Injects globally into that window.
    */
-  Store:      { window: 'store', scope: ':root' },
-} as const satisfies Record<string, CSSTargetInput>;
+  Store:      { window: 'store' as const, scope: ':root' },
+} satisfies Record<string, CSSTargetInput>;
 
 /** A resolved, single injectable window (no compound targets). */
 type SingleTarget = 'big-picture' | 'quick-access' | 'main-menu' | 'keyboard' | 'overlay-browser' | 'store';
@@ -236,6 +262,7 @@ function getTargetDocument(target: SingleTarget): Document {
   if (!pm?.m_mapPopups) return document;
 
   let found: Document | null = null;
+  let bpmWindow: any = null;
 
   pm.m_mapPopups.forEach((popup: any, key: string) => {
     if (found) return;
@@ -244,7 +271,12 @@ function getTargetDocument(target: SingleTarget): Document {
 
     const url = popup?.m_popup?.location?.href ?? '';
     switch (target) {
-      case 'big-picture':     if (doc.title === 'Steam Big Picture Mode') found = doc; break;
+      case 'big-picture':
+        // BPM mode (SteamOS or macOS with -gamepadui): title is "Steam Big Picture Mode", key "SP BPM_*"
+        if (doc.title === 'Steam Big Picture Mode') { found = doc; break; }
+        // Desktop mode (macOS): main window has key "SP Desktop_*" and title "Steam"
+        if (key.startsWith('SP Desktop_') && doc.title === 'Steam') found = doc;
+        break;
       case 'quick-access':    if (key.startsWith('QuickAccess'))    found = doc; break;
       case 'main-menu':       if (key.startsWith('MainMenu'))       found = doc; break;
       case 'keyboard':        if (key.startsWith('Keyboard'))       found = doc; break;
@@ -255,7 +287,33 @@ function getTargetDocument(target: SingleTarget): Document {
         if (url.includes('store.steampowered.com') || url.includes('steamcommunity.com')) found = doc;
         break;
     }
+
+    // Track the BPM window so we can use its BrowserID for the browser-view fallback below.
+    if (doc.title === 'Steam Big Picture Mode' || (key.startsWith('SP Desktop_') && doc.title === 'Steam')) {
+      bpmWindow = popup?.m_popup;
+    }
   });
+
+  // On macOS BPM mode, QAM and MainMenu are browser-view popups opened via window.open()
+  // from the BPM window — they never appear in g_PopupManager.  Use the named-window
+  // reference (name = "<Type>_uid<BPMBrowserID>") to reach their documents.
+  if (!found && bpmWindow && (target === 'quick-access' || target === 'main-menu')) {
+    const browserId: number | undefined = bpmWindow.SteamClient?.Browser?.GetBrowserID?.();
+    if (browserId) {
+      const name = target === 'quick-access' ? `QuickAccess_uid${browserId}` : `MainMenu_uid${browserId}`;
+      const win = window.open('', name) as (Window & typeof globalThis) | null;
+      if (win && win !== (window as any)) {
+        if (win.document?.title === name) {
+          // Window exists and has content — use it.
+          found = win.document;
+        } else {
+          // window.open() created a blank phantom window that would block Steam from
+          // opening the real popup under this name — close it immediately.
+          try { win.close(); } catch (_) {}
+        }
+      }
+    }
+  }
 
   return found ?? document;
 }
@@ -268,10 +326,30 @@ function makeId(pluginKey: string, index: number): string {
 // Module-level — resets cleanly on HMR so each fresh load reinstalls observers.
 const watchedTargets = new Set<SingleTarget>();
 
+// Targets whose popup wasn't open at inject time — polled until the popup appears.
+const pendingTargets = new Set<SingleTarget>();
+let _pendingPoll: ReturnType<typeof setInterval> | null = null;
+
+function startPendingPoll(): void {
+  if (_pendingPoll) return;
+  _pendingPoll = setInterval(() => {
+    for (const target of pendingTargets) {
+      const doc = getTargetDocument(target);
+      if (doc === document) continue; // Still not open
+      reinjectionAll(target);
+      ensureReinjectWatcher(target);
+      pendingTargets.delete(target);
+    }
+    if (pendingTargets.size === 0) {
+      clearInterval(_pendingPoll!);
+      _pendingPoll = null;
+    }
+  }, 500);
+}
+
 function reinjectionAll(target: SingleTarget): void {
   const registry = getRegistry();
   const doc = getTargetDocument(target);
-  // If the popup wasn't found, getTargetDocument falls back to the current document — skip.
   if (doc === document) return;
   for (const [id, entry] of registry.entries()) {
     if (entry.target !== target) continue;
@@ -289,7 +367,12 @@ function ensureReinjectWatcher(target: SingleTarget): void {
   if (watchedTargets.has(target)) return;
 
   const doc = getTargetDocument(target);
-  if (doc === document) return;
+  if (doc === document) {
+    // Popup not open yet — poll until it appears.
+    pendingTargets.add(target);
+    startPendingPoll();
+    return;
+  }
 
   watchedTargets.add(target);
 
@@ -330,11 +413,15 @@ function injectOne(
   const id = makeId(pluginKey, index);
 
   const doc = getTargetDocument(target);
+
+  // Create the element and inject immediately only if the popup is open.
+  // If not (doc falls back to current document), store in registry without injecting —
+  // ensureReinjectWatcher will start a poll and inject via reinjectionAll when the popup appears.
   const el = doc.createElement('style');
   el.id = id;
   el.setAttribute('data-condenser-plugin', pluginKey);
   el.textContent = css;
-  doc.head.appendChild(el);
+  if (doc !== document) doc.head.appendChild(el);
 
   const entry: StyleEntry = { pluginKey, target, css, el };
   registry.set(id, entry);

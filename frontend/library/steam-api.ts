@@ -4,13 +4,16 @@ import { getCondenser } from './condenser.js';
 // Scans all webpack modules for CSS module objects (every value is a string),
 // then merges them into a single semantic-name → minified-class map.
 // First occurrence wins when two modules share a key.
-// Cached after first resolution — call resetClasses() if the registry reloads.
+// Cache is invalidated when the registry grows (handles early-access before all chunks load).
 let _cache: Record<string, string> | null = null;
+let _cacheRegistrySize = 0;
 
 function buildClasses(): Record<string, string> {
-  if (_cache) return _cache;
   const registry = getCondenser().core.webpackRegistry;
   if (!registry) return {};
+
+  // Return cached result only if the registry hasn't grown since the cache was built.
+  if (_cache && registry.size === _cacheRegistrySize) return _cache;
 
   const merged: Record<string, string> = {};
   for (const mod of registry.values()) {
@@ -24,10 +27,11 @@ function buildClasses(): Record<string, string> {
   }
 
   _cache = merged;
+  _cacheRegistrySize = registry.size;
   return merged;
 }
 
-export function resetClasses(): void { _cache = null; }
+export function resetClasses(): void { _cache = null; _cacheRegistrySize = 0; }
 
 // Proxy so access is lazy — the webpack registry may not exist at import time.
 export const classes: Record<string, string> = new Proxy({} as Record<string, string>, {
