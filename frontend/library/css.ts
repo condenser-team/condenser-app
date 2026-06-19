@@ -85,14 +85,23 @@ export const Target = {
   /** Recent-games / lock-screen background area. */
   Background: { window: 'big-picture' as const, scope: '[class*="gamepadhomerecentgames_RecentGamesBackground_"]' },
 
-  /** Downloads tab (queue, progress bars, uninstalled list). */
-  Downloads:  { window: 'big-picture' as const, scope: '[class*="downloads_DownloadsPage_"]' },
+  /** Downloads tab (queue, progress bars, uninstalled list). Scope resolved at runtime from webpack. */
+  get Downloads(): CSSTargetSpec {
+    return { window: 'big-picture', scope: buildSectionScope(['DownloadsPage'], '[class*="downloads_DownloadsPage_"]') };
+  },
 
-  /** Friends & Chat panel. */
-  Friends:    { window: 'big-picture' as const, scope: '[class*="friendslist_FriendsChatsContainer_"]' },
+  /** Friends & Chat panel. Scope resolved at runtime from webpack. */
+  get Friends(): CSSTargetSpec {
+    return { window: 'big-picture', scope: buildSectionScope(['FriendsChatsContainer'], '[class*="friendslist_FriendsChatsContainer_"]') };
+  },
 
-  /** Home tab (Recent Games carousel + What's New feed). */
-  Home:       { window: 'big-picture' as const, scope: '[class*="gamepadhome_TabbedContent_"]' },
+  /** Home tab (Recent Games carousel + What's New feed). Scope resolved at runtime from webpack. */
+  get Home(): CSSTargetSpec {
+    return { window: 'big-picture', scope: buildSectionScope(['BackstackRootTest'], '[class*="gamepadhome_BackstackRootTest_"]') };
+  },
+
+  /** Game detail page scrollable body (the content column when viewing a game). */
+  GameDetail: { window: 'big-picture' as const, scope: '[class*="_3lDczhulqraStjCitLYJ1K"]' },
 
   /** Library tab (game grid / list + app details). Scope resolved at runtime from webpack. */
   get Library(): CSSTargetSpec {
@@ -226,6 +235,7 @@ function scopeCss(css: string, scope: string): string {
         const t = s.trim();
         if (!t) return '';
         if (t === ':root') return scope;
+        if (t.startsWith('::')) return `${scope}${t}`;
         return `${scope} ${t}`;
       }).filter(Boolean).join(', ');
       result += `${prefixed} {${block}}\n`;

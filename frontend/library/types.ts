@@ -153,8 +153,8 @@ export interface CondenserNamespace {
      * **Section targets** (`CSSTargetSpec`) — carry `{ window, scope }` automatically.
      * The `scope` is a `[class*="..."]` selector that constrains injected CSS to only
      * that section's root container (Library styles cannot bleed into Settings, etc.):
-     *   `Background`, `Downloads`, `Friends`, `Home`, `Library`, `LockScreen`,
-     *   `Media`, `Settings`, `Store`
+     *   `Background`, `Downloads`, `Friends`, `GameDetail`, `Home`, `Library`,
+     *   `LockScreen`, `Media`, `Settings`, `Store`
      */
     Target: {
       // ---- Window targets (raw CEF popup identifiers) ----
@@ -165,15 +165,16 @@ export interface CondenserNamespace {
       readonly OverlayBrowser: 'overlay-browser';
       readonly Global:         'global';
       // ---- Section targets (scoped to BPM section root via [class*="..."] selector) ----
-      readonly Background: CSSTargetSpec;
-      readonly Downloads:  CSSTargetSpec;
-      readonly Friends:    CSSTargetSpec;
-      readonly Home:       CSSTargetSpec;
-      readonly Library:    CSSTargetSpec;
-      readonly LockScreen: CSSTargetSpec;
-      readonly Media:      CSSTargetSpec;
-      readonly Settings:   CSSTargetSpec;
-      readonly Store:      CSSTargetSpec;
+      readonly Background:  CSSTargetSpec;
+      readonly Downloads:   CSSTargetSpec;
+      readonly Friends:     CSSTargetSpec;
+      readonly GameDetail:  CSSTargetSpec;
+      readonly Home:        CSSTargetSpec;
+      readonly Library:     CSSTargetSpec;
+      readonly LockScreen:  CSSTargetSpec;
+      readonly Media:       CSSTargetSpec;
+      readonly Settings:    CSSTargetSpec;
+      readonly Store:       CSSTargetSpec;
     };
     /**
      * Inject styles into a target window/section and return a cleanup function.
