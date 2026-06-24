@@ -27,27 +27,44 @@ test.afterAll(async () => {
 });
 
 test.describe('Global Components', () => {
-  test('condenser-system component has a persistent export', async () => {
+  test('condenser-manager component has a persistent export', async () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
     const hasGlobal = await page.evaluate(() => {
-      const comp = (window as any).condenser?.components?.['condenser-system']?.component;
+      const comp = (window as any).condenser?.components?.['condenser-manager']?.component;
       return typeof comp?.persistent === 'function';
     });
     expect(hasGlobal).toBe(true);
   });
 
-  test('persistent indicator element is present in the DOM', async () => {
+  test('persistent indicator element is present in the BPM DOM', async () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
-    const found = await page.evaluate(() =>
-      document.getElementById('condenser-persistent-indicator') !== null,
-    );
+    // The Persistent component renders inside BPM's React tree, not SharedJSContext.
+    // Reach BPM's document via g_PopupManager (same-origin access).
+    const found = await page.evaluate(() => {
+      const pm = (globalThis as any).g_PopupManager;
+      for (const [, popup] of (pm?.m_mapPopups ?? new Map())) {
+        const doc: Document | undefined = popup?.m_popup?.document;
+        if (doc?.title === 'Steam Big Picture Mode') {
+          return doc.getElementById('condenser-persistent-indicator') !== null;
+        }
+      }
+      // Fallback: desktop BPM has title 'Steam' with an 'SP Desktop_' key
+      for (const [key, popup] of (pm?.m_mapPopups ?? new Map())) {
+        if (!key.startsWith('SP Desktop_')) continue;
+        const doc: Document | undefined = popup?.m_popup?.document;
+        if (doc?.title === 'Steam') {
+          return doc.getElementById('condenser-persistent-indicator') !== null;
+        }
+      }
+      return false;
+    });
     expect(found).toBe(true);
   });
 
   test('InjectedGlobal registers a forceUpdater for live reload', async () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
     const hasUpdater = await page.evaluate(() => {
-      const ns = (window as any).condenser?.components?.['condenser-system'];
+      const ns = (window as any).condenser?.components?.['condenser-manager'];
       return (ns?.forceUpdaters?.size ?? 0) > 0;
     });
     expect(hasUpdater).toBe(true);

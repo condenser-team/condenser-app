@@ -30,16 +30,14 @@ test.describe('Plugin RPC', () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
     const result = await page.evaluate(async () => {
       const c = (window as any).condenser;
-      return c.plugins.callPlugin('condenser-system', { action: 'getInfo' });
+      return c.plugins.callPlugin('condenser-manager', { action: 'getSystemInfo' });
     });
     expect(result).toMatchObject({
       platform: expect.any(String),
-      uptime: expect.any(Number),
-      memory: expect.any(Number),
+      arch: expect.any(String),
     });
     expect((result as any).platform.length).toBeGreaterThan(0);
-    expect((result as any).uptime).toBeGreaterThan(0);
-    expect((result as any).memory).toBeGreaterThan(0);
+    expect((result as any).arch.length).toBeGreaterThan(0);
   });
 
   test('callPlugin rejects for an unknown plugin', async () => {
@@ -63,7 +61,7 @@ test.describe('Plugin RPC', () => {
       c.core.ws = null;
       try {
         return await c.plugins
-          .callPlugin('condenser-system', { action: 'getInfo' })
+          .callPlugin('condenser-manager', { action: 'getSystemInfo' })
           .then(() => null)
           .catch((e: Error) => e.message);
       } finally {

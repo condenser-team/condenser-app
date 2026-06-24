@@ -40,10 +40,10 @@ test.describe('QAM injection', () => {
     expect(found).toBe(true);
   });
 
-  test('condenser-system component is loaded with tab and panel', async () => {
+  test('condenser-manager component is loaded with tab and panel', async () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
     const result = await page.evaluate(() => {
-      const comp = (window as any).condenser?.components?.['condenser-system']?.component;
+      const comp = (window as any).condenser?.components?.['condenser-manager']?.component;
       return {
         hasTab: typeof comp?.tab === 'function',
         hasPanel: typeof comp?.panel === 'function',
@@ -57,15 +57,15 @@ test.describe('QAM injection', () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
     const result = await page.evaluate(async () => {
       const c = (window as any).condenser;
-      const ns = (c.components['condenser-system'] ||= {});
+      const ns = (c.components['condenser-manager'] ||= {});
       ns.forceUpdaters ??= new Set();
       let called = false;
       const spy = () => { called = true; };
       ns.forceUpdaters.add(spy);
       try {
         const plugins: any[] = await c.plugins.callPlugin('get-plugins');
-        const plugin = plugins.find((p: any) => p.id === 'condenser-system');
-        if (!plugin) return { error: 'condenser-system not in get-plugins response' };
+        const plugin = plugins.find((p: any) => p.id === 'condenser-manager');
+        if (!plugin) return { error: 'condenser-manager not in get-plugins response' };
         await c.plugins.loadPlugin(plugin.id, plugin.url + '?t=' + Date.now());
         return { called };
       } finally {

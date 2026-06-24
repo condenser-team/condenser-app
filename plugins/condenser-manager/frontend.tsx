@@ -358,32 +358,35 @@ export function Persistent(_: { websocketUrl: string }) {
   }, []);
 
   const closeModal = () => setModal(null);
-  if (!modal) return null;
-
   return (
-    <div
-      style={{
-        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-        zIndex: 100000, background: 'rgba(0,0,0,0.85)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}
-      onClick={closeModal}
-    >
-      <div
-        style={{
-          background: '#1a1d23', borderRadius: 8, padding: 24,
-          minWidth: 320, maxWidth: 600,
-          color: 'white', fontFamily: 'sans-serif',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
-        }}
-        onClick={(e: any) => e.stopPropagation()}
-      >
-        {modal.title && <h3 style={{ margin: '0 0 12px', fontSize: 18 }}>{modal.title}</h3>}
-        {modal.content}
-        <button className="DialogButton _DialogLayout Primary Focusable" style={{ marginTop: 16, width: 'auto' }} onClick={closeModal}>
-          Close
-        </button>
-      </div>
-    </div>
+    <>
+      <span id="condenser-persistent-indicator" style={{ display: 'none' }} />
+      {modal && (
+        <div
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            zIndex: 100000, background: 'rgba(0,0,0,0.85)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+          onClick={closeModal}
+        >
+          <div
+            style={{
+              background: '#1a1d23', borderRadius: 8, padding: 24,
+              minWidth: 320, maxWidth: 600,
+              color: 'white', fontFamily: 'sans-serif',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+            }}
+            onClick={(e: any) => e.stopPropagation()}
+          >
+            {modal.title && <h3 style={{ margin: '0 0 12px', fontSize: 18 }}>{modal.title}</h3>}
+            {modal.content}
+            <button className="DialogButton _DialogLayout Primary Focusable" style={{ marginTop: 16, width: 'auto' }} onClick={closeModal}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

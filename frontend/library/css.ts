@@ -1,45 +1,12 @@
 
 import { getCondenser } from './condenser.js';
-import type { CSSSource, CSSTarget, CSSTargetInput, CSSTargetSpec, StyleEntry, StyleProperties, StyleSheet } from './types.js';
+import { Window } from './types.js';
+import type { CSSSource, StyleEntry, StyleProperties, StyleSheet, TargetDef } from './types.js';
 
-export type { CSSSource, CSSTarget, CSSTargetInput, CSSTargetSpec, StyleEntry, StyleProperties, StyleSheet };
+export { Window };
+export type { CSSSource, StyleEntry, StyleProperties, StyleSheet, TargetDef };
 
 // ---- Target constants ----
-
-/**
- * Injection targets for the Steam UI.
- *
- * ## Window targets (strings)
- * Inject globally into a CEF popup window — no CSS scoping applied.
- * Use these for changes that span an entire window (fonts, colours, animations).
- *
- *   `BigPicture`     — Main Steam window (BPM or Desktop)
- *   `MainMenu`       — Steam button overlay / STEAM button (BPM only)
- *   `QuickAccess`    — Quick Access Menu / controller right-side button (BPM only)
- *   `Keyboard`       — On-screen keyboard popup
- *   `OverlayBrowser` — In-game overlay browser (only while a game is running)
- *   `Global`         — BigPicture + MainMenu + QuickAccess simultaneously
- *
- * ## Section targets (CSSTargetSpec objects)
- * Each carries `{ window, scope }`. The `scope` selector constrains injected styles
- * to a specific section's root container.
- *
- * On SteamOS class names follow `module_ClassName_HASH`; on Desktop/macOS they are
- * pure hashes. Section targets resolve the correct class name at runtime from the
- * webpack bundle so they work on both platforms.
- *
- * @example
- * const { inject, createStyleToggle, Target } = condenser.css;
- *
- * // Whole main Steam window — fonts, global colours, border-radius:
- * inject(key, { fontFamily: 'Inter, sans-serif' }, Target.BigPicture);
- *
- * // Library section only — CSS is scoped automatically:
- * createStyleToggle(key, { '.Panel': { borderRadius: '10px' } }, Target.Library);
- *
- * // Section root element directly:
- * inject(key, { backgroundColor: 'rgba(0,0,0,0.5)' }, Target.Home);
- */
 
 /**
  * Builds a CSS scope selector by looking up class name(s) from the webpack CSS module
@@ -61,75 +28,71 @@ function buildSectionScope(semanticKeys: readonly string[], steamOsFallback: str
   return steamOsFallback;
 }
 
+/** Convenience constructor so each Target entry stays on one line. */
+function t(windows: Window[], scope: string): TargetDef {
+  return { windows, scope };
+}
+
+/**
+ * Injection targets for the Steam UI.
+ *
+ * Each entry maps a semantic Steam UI feature to the CEF window(s) and CSS scope
+ * selector needed to style it. Pass a `Target.*` value to `inject()` or
+ * `createStyleToggle()` — the routing details are handled internally.
+ *
+ * @example
+ * const { createStyleToggle, Target } = condenser.css;
+ *
+ * // Monospace font across all main windows:
+ * createStyleToggle(key, { fontFamily: 'monospace' }, Target.Global);
+ *
+ * // Coloured outline on the Library tab:
+ * createStyleToggle(key, { boxShadow: 'inset 0 0 0 3px #ce93d8' }, Target.Library);
+ */
 export const Target = {
-  // ---- Window targets (raw CEF popup identifiers) ----
-
-  /** Main Steam window — BPM ("Steam Big Picture Mode") or Desktop ("Steam"). */
-  BigPicture:     'big-picture' as const,
-  /** Steam button overlay (opened with the STEAM / home button). BPM only. */
-  MainMenu:       'main-menu' as const,
-  /** Quick Access Menu (opened with the controller right-side button). BPM only. */
-  QuickAccess:    'quick-access' as const,
+  /** Injects into body of BigPicture + MainMenu + QuickAccess simultaneously. */
+  Global:         t([Window.BigPicture, Window.MainMenu, Window.QuickAccess], 'body'),
+  /** BPM header bar (clock and system tray strip). */
+  Header:         t([Window.BigPicture], '#header'),
+  /** Quick Access Menu panel. */
+  QuickAccess:    t([Window.QuickAccess], '#QuickAccess-Menu'),
+  /** Steam button overlay (Main Menu). */
+  MainMenu:       t([Window.MainMenu], 'body'),
   /** On-screen keyboard popup. */
-  Keyboard:       'keyboard' as const,
-  /** In-game overlay browser. Only present while a game is running. */
-  OverlayBrowser: 'overlay-browser' as const,
-  /** Injects into BigPicture + MainMenu + QuickAccess simultaneously. */
-  Global:         'global' as const,
-
-  // ---- Section targets (scoped to each section's root element) ----
-  //
-  // Scope selectors are resolved at call time from the webpack CSS module registry.
-  // This handles both SteamOS (module_ClassName_HASH) and macOS (pure hash) class formats.
+  Keyboard:       t([Window.Keyboard], 'body'),
+  /** In-game overlay browser (only present while a game is running). */
+  OverlayBrowser: t([Window.OverlayBrowser], 'body'),
 
   /** Recent-games / lock-screen background area. */
-  Background: { window: 'big-picture' as const, scope: '[class*="gamepadhomerecentgames_RecentGamesBackground_"]' },
-
-  /** Downloads tab (queue, progress bars, uninstalled list). Scope resolved at runtime from webpack. */
-  get Downloads(): CSSTargetSpec {
-    return { window: 'big-picture', scope: buildSectionScope(['DownloadsPage'], '[class*="downloads_DownloadsPage_"]') };
-  },
-
-  /** Friends & Chat panel. Scope resolved at runtime from webpack. */
-  get Friends(): CSSTargetSpec {
-    return { window: 'big-picture', scope: buildSectionScope(['FriendsChatsContainer'], '[class*="friendslist_FriendsChatsContainer_"]') };
-  },
-
-  /** Home tab (Recent Games carousel + What's New feed). Scope resolved at runtime from webpack. */
-  get Home(): CSSTargetSpec {
-    return { window: 'big-picture', scope: buildSectionScope(['BackstackRootTest'], '[class*="gamepadhome_BackstackRootTest_"]') };
-  },
-
-  /** Game detail page scrollable body (the content column when viewing a game). */
-  GameDetail: { window: 'big-picture' as const, scope: '[class*="_3lDczhulqraStjCitLYJ1K"]' },
-
-  /** Library tab (game grid / list + app details). Scope resolved at runtime from webpack. */
-  get Library(): CSSTargetSpec {
-    return { window: 'big-picture', scope: buildSectionScope(['GamepadLibrary', 'Library'], '[class*="gamepadlibrary_GamepadLibrary_"]') };
-  },
-
-  /** Lock screen overlay (shown when the device is locked). */
-  LockScreen: { window: 'big-picture' as const, scope: '[class*="lockscreen_Container_"]' },
-
+  Background: t([Window.BigPicture], '[class*="gamepadhomerecentgames_RecentGamesBackground_"]'),
+  /** Game detail page scrollable body. */
+  GameDetail:  t([Window.BigPicture], '[class*="_3lDczhulqraStjCitLYJ1K"]'),
+  /** Lock screen overlay. */
+  LockScreen:  t([Window.BigPicture], '[class*="lockscreen_Container_"]'),
   /** Media tab (screenshots, videos). */
-  Media:      { window: 'big-picture' as const, scope: '[class*="mediapage_MediaPage_"]' },
+  Media:       t([Window.BigPicture], '[class*="mediapage_MediaPage_"]'),
+  /** Settings dialog — targets the Panel children to avoid the flex root hiding inset shadows. */
+  Settings:    t([Window.BigPicture], '[class*="_33vqr13-jdnjTkKKTh414f"] > .Panel'),
 
-  /** Settings dialog — full page including the left nav menu. Uses :has(.PageListColumn) to
-   *  distinguish the inner-width wrapper that contains both columns from the one that wraps
-   *  just the content panel. :has() is supported in Steam's CEF (Chrome 105+). */
-  get Settings(): CSSTargetSpec {
-    return { window: 'big-picture', scope: '.DialogContent_InnerWidth:has(.PageListColumn)' };
+  /** Downloads tab. Scope resolved at runtime from webpack. */
+  get Downloads(): TargetDef {
+    return t([Window.BigPicture], buildSectionScope(['DownloadsPage'], '[class*="downloads_DownloadsPage_"]'));
   },
+  /** Friends & Chat panel. Scope resolved at runtime from webpack. */
+  get Friends(): TargetDef {
+    return t([Window.BigPicture], buildSectionScope(['FriendsChatsContainer'], '[class*="friendslist_FriendsChatsContainer_"]'));
+  },
+  /** Home tab (Recent Games carousel + What's New feed). Scope resolved at runtime from webpack. */
+  get Home(): TargetDef {
+    return t([Window.BigPicture], buildSectionScope(['BackstackRootTest'], '[class*="gamepadhome_BackstackRootTest_"]'));
+  },
+  /** Library tab (game grid / list). Scope resolved at runtime from webpack. */
+  get Library(): TargetDef {
+    return t([Window.BigPicture], buildSectionScope(['GamepadLibrary', 'Library'], '[class*="gamepadlibrary_GamepadLibrary_"]'));
+  },
+} satisfies Record<string, TargetDef>;
 
-  /**
-   * Steam Store — a separate CEF popup identified by URL (store.steampowered.com /
-   * steamcommunity.com), not by a Steam class. Injects globally into that window.
-   */
-  Store:      { window: 'store' as const, scope: ':root' },
-} satisfies Record<string, CSSTargetInput>;
-
-/** A resolved, single injectable window (no compound targets). */
-type SingleTarget = 'big-picture' | 'quick-access' | 'main-menu' | 'keyboard' | 'overlay-browser' | 'store';
+export type TargetType = typeof Target;
 
 // ---- Registry ----
 
@@ -149,7 +112,6 @@ function serializeProps(props: StyleProperties): string {
   return Object.entries(props)
     .filter(([, v]) => v !== undefined && v !== null)
     .map(([k, v]) => {
-      // CSS custom properties (--foo) are left as-is; camelCase props are converted.
       const prop = k.startsWith('--') ? k : camelToKebab(k);
       return `  ${prop}: ${v};`;
     })
@@ -157,32 +119,20 @@ function serializeProps(props: StyleProperties): string {
 }
 
 function isStyleSheet(source: StyleProperties | StyleSheet): source is StyleSheet {
-  // StyleSheet has object values ({ selector: { prop: value } }).
-  // StyleProperties has string/number values ({ prop: value }).
   const first = Object.values(source)[0];
   return first !== undefined && typeof first === 'object' && first !== null;
 }
 
 /**
- * Serialises a CSSSource (property bag or stylesheet) to a plain CSS string,
- * applying `scope` scoping where appropriate.
- *
- * - `StyleProperties` → generates `scope { prop: value; }` applied to the scope root
- * - `StyleSheet`      → serialises each rule then prefixes all selectors with `scope`
- *
- * When `scope` is absent or `':root'`, no selector prefixing is done.
+ * Serialises a CSSSource to a plain CSS string scoped to `scope`.
+ * - `StyleProperties` → `scope { prop: value; }`
+ * - `StyleSheet`      → each rule prefixed with `scope`
  */
-function serializeSource(source: CSSSource, scope: string | undefined): string {
-  const scopeIsReal = !!scope && scope !== ':root';
-
+function serializeSource(source: CSSSource, scope: string): string {
   if (!isStyleSheet(source)) {
-    // Flat property bag — apply directly to the scope root element.
-    const host = scopeIsReal ? scope! : ':root';
     const body = serializeProps(source);
-    return body ? `${host} {\n${body}\n}` : '';
+    return body ? `${scope} {\n${body}\n}` : '';
   }
-
-  // Stylesheet (selector → properties) — serialise then scope each rule.
   const rawCss = Object.entries(source)
     .map(([sel, props]) => {
       const body = serializeProps(props);
@@ -190,18 +140,16 @@ function serializeSource(source: CSSSource, scope: string | undefined): string {
     })
     .filter(Boolean)
     .join('\n');
-  return scopeIsReal ? scopeCss(rawCss, scope!) : rawCss;
+  return scopeCss(rawCss, scope);
 }
 
 // ---- CSS scoping ----
 
 /**
- * Prefixes every CSS rule in `css` with `scope` so styles only affect descendants
- * of that selector. Handles @media/@supports (recurses), passes @keyframes and
- * @font-face through unchanged, and maps `:root` to the scope element itself.
+ * Prefixes every CSS rule in `css` with `scope`. Handles @media/@supports (recurses),
+ * passes @keyframes and @font-face through unchanged, maps `:root` to the scope element.
  */
 function scopeCss(css: string, scope: string): string {
-  // Strip comments first to avoid brace counting errors.
   const src = css.replace(/\/\*[\s\S]*?\*\//g, '');
   let result = '';
   let i = 0;
@@ -245,30 +193,10 @@ function scopeCss(css: string, scope: string): string {
   return result;
 }
 
-// ---- Target resolution ----
+// ---- Window routing ----
 
-function isCSSTargetSpec(t: CSSTargetInput): t is CSSTargetSpec {
-  return typeof t === 'object' && !Array.isArray(t) && 'window' in t;
-}
-
-function resolveTargets(target: CSSTarget | readonly CSSTarget[]): SingleTarget[] {
-  const raw = (Array.isArray(target) ? target : [target]) as CSSTarget[];
-  const expanded = raw.flatMap((t): SingleTarget[] => {
-    if (t === 'global') return ['big-picture', 'main-menu', 'quick-access'];
-    return [t as SingleTarget];
-  });
-  return [...new Set(expanded)];
-}
-
-function normalizeInput(input: CSSTargetInput): { targets: SingleTarget[]; scope?: string } {
-  if (isCSSTargetSpec(input)) {
-    return { targets: resolveTargets(input.window), scope: input.scope };
-  }
-  return { targets: resolveTargets(input) };
-}
-
-function getTargetDocument(target: SingleTarget): Document {
-  const pm = (window as any).g_PopupManager;
+function getTargetDocument(window: Window): Document {
+  const pm = (globalThis as any).g_PopupManager;
   if (!pm?.m_mapPopups) return document;
 
   let found: Document | null = null;
@@ -280,45 +208,35 @@ function getTargetDocument(target: SingleTarget): Document {
     if (!doc) return;
 
     const url = popup?.m_popup?.location?.href ?? '';
-    switch (target) {
-      case 'big-picture':
-        // BPM mode (SteamOS or macOS with -gamepadui): title is "Steam Big Picture Mode", key "SP BPM_*"
+    switch (window) {
+      case Window.BigPicture:
         if (doc.title === 'Steam Big Picture Mode') { found = doc; break; }
-        // Desktop mode (macOS): main window has key "SP Desktop_*" and title "Steam"
         if (key.startsWith('SP Desktop_') && doc.title === 'Steam') found = doc;
         break;
-      case 'quick-access':    if (key.startsWith('QuickAccess'))    found = doc; break;
-      case 'main-menu':       if (key.startsWith('MainMenu'))       found = doc; break;
-      case 'keyboard':        if (key.startsWith('Keyboard'))       found = doc; break;
-      case 'overlay-browser': if (key.startsWith('OverlayBrowser')) found = doc; break;
-      // Store is a URL-matched popup (store.steampowered.com or steamcommunity.com).
-      // This matches CSS Loader's "store" tab definition.
-      case 'store':
+      case Window.QuickAccess:    if (key.startsWith('QuickAccess'))    found = doc; break;
+      case Window.MainMenu:       if (key.startsWith('MainMenu'))       found = doc; break;
+      case Window.Keyboard:        if (key.startsWith('Keyboard'))       found = doc; break;
+      case Window.OverlayBrowser: if (key.startsWith('OverlayBrowser')) found = doc; break;
+      case Window.Store:
         if (url.includes('store.steampowered.com') || url.includes('steamcommunity.com')) found = doc;
         break;
     }
 
-    // Track the BPM window so we can use its BrowserID for the browser-view fallback below.
     if (doc.title === 'Steam Big Picture Mode' || (key.startsWith('SP Desktop_') && doc.title === 'Steam')) {
       bpmWindow = popup?.m_popup;
     }
   });
 
-  // On macOS BPM mode, QAM and MainMenu are browser-view popups opened via window.open()
-  // from the BPM window — they never appear in g_PopupManager.  Use the named-window
-  // reference (name = "<Type>_uid<BPMBrowserID>") to reach their documents.
-  if (!found && bpmWindow && (target === 'quick-access' || target === 'main-menu')) {
+  // On macOS BPM, QAM and MainMenu are browser-view popups reached via named window references.
+  if (!found && bpmWindow && (window === Window.QuickAccess || window === Window.MainMenu)) {
     const browserId: number | undefined = bpmWindow.SteamClient?.Browser?.GetBrowserID?.();
     if (browserId) {
-      const name = target === 'quick-access' ? `QuickAccess_uid${browserId}` : `MainMenu_uid${browserId}`;
-      const win = window.open('', name) as (Window & typeof globalThis) | null;
-      if (win && win !== (window as any)) {
+      const name = window === Window.QuickAccess ? `QuickAccess_uid${browserId}` : `MainMenu_uid${browserId}`;
+      const win = globalThis.open('', name) as (typeof globalThis) | null;
+      if (win && win !== (globalThis as any)) {
         if (win.document?.title === name) {
-          // Window exists and has content — use it.
           found = win.document;
         } else {
-          // window.open() created a blank phantom window that would block Steam from
-          // opening the real popup under this name — close it immediately.
           try { win.close(); } catch (_) {}
         }
       }
@@ -328,41 +246,41 @@ function getTargetDocument(target: SingleTarget): Document {
   return found ?? document;
 }
 
+// ---- ID helpers ----
+
 function makeId(pluginKey: string, index: number): string {
   return index === 0 ? `condenser-css-${pluginKey}` : `condenser-css-${pluginKey}-${index}`;
 }
 
 // ---- Reinject watcher ----
-// Module-level — resets cleanly on HMR so each fresh load reinstalls observers.
-const watchedTargets = new Set<SingleTarget>();
 
-// Targets whose popup wasn't open at inject time — polled until the popup appears.
-const pendingTargets = new Set<SingleTarget>();
+const watchedWindows = new Set<Window>();
+const pendingWindows = new Set<Window>();
 let _pendingPoll: ReturnType<typeof setInterval> | null = null;
 
 function startPendingPoll(): void {
   if (_pendingPoll) return;
   _pendingPoll = setInterval(() => {
-    for (const target of pendingTargets) {
-      const doc = getTargetDocument(target);
-      if (doc === document) continue; // Still not open
-      reinjectionAll(target);
-      ensureReinjectWatcher(target);
-      pendingTargets.delete(target);
+    for (const win of pendingWindows) {
+      const doc = getTargetDocument(win);
+      if (doc === document) continue;
+      reinjectionAll(win);
+      ensureReinjectWatcher(win);
+      pendingWindows.delete(win);
     }
-    if (pendingTargets.size === 0) {
+    if (pendingWindows.size === 0) {
       clearInterval(_pendingPoll!);
       _pendingPoll = null;
     }
   }, 500);
 }
 
-function reinjectionAll(target: SingleTarget): void {
+function reinjectionAll(win: Window): void {
   const registry = getRegistry();
-  const doc = getTargetDocument(target);
+  const doc = getTargetDocument(win);
   if (doc === document) return;
   for (const [id, entry] of registry.entries()) {
-    if (entry.target !== target) continue;
+    if (entry.target !== win) continue;
     if (doc.getElementById(id)) continue;
     const el = doc.createElement('style');
     el.id = id;
@@ -373,19 +291,17 @@ function reinjectionAll(target: SingleTarget): void {
   }
 }
 
-function ensureReinjectWatcher(target: SingleTarget): void {
-  if (watchedTargets.has(target)) return;
+function ensureReinjectWatcher(win: Window): void {
+  if (watchedWindows.has(win)) return;
 
-  const doc = getTargetDocument(target);
+  const doc = getTargetDocument(win);
   if (doc === document) {
-    // Popup not open yet — poll until it appears.
-    pendingTargets.add(target);
+    pendingWindows.add(win);
     startPendingPoll();
     return;
   }
 
-  watchedTargets.add(target);
-
+  watchedWindows.add(win);
   const registry = getRegistry();
 
   const observer = new MutationObserver((records) => {
@@ -394,48 +310,43 @@ function ensureReinjectWatcher(target: SingleTarget): void {
       [...r.removedNodes].some((n) => n.nodeType === 1 && ours.has((n as Element).id)),
     );
     if (!anyRemoved) return;
-    reinjectionAll(target);
+    reinjectionAll(win);
   });
   observer.observe(doc.head, { childList: true });
 
-  const win = doc.defaultView;
-  if (win) {
-    const onLoad = () => {
+  const view = doc.defaultView;
+  if (view) {
+    view.addEventListener('load', () => {
       observer.disconnect();
-      watchedTargets.delete(target);
-      ensureReinjectWatcher(target);
-      reinjectionAll(target);
-    };
-    win.addEventListener('load', onLoad);
+      watchedWindows.delete(win);
+      ensureReinjectWatcher(win);
+      reinjectionAll(win);
+    });
   }
 }
 
-// ---- Internal single-target inject ----
+// ---- Internal single-window inject ----
 
 function injectOne(
   pluginKey: string,
   css: string,
-  target: SingleTarget,
+  win: Window,
 ): { entry: StyleEntry; id: string; cleanup: () => void } {
   const registry = getRegistry();
   let index = 0;
   while (registry.has(makeId(pluginKey, index))) index++;
   const id = makeId(pluginKey, index);
 
-  const doc = getTargetDocument(target);
-
-  // Create the element and inject immediately only if the popup is open.
-  // If not (doc falls back to current document), store in registry without injecting —
-  // ensureReinjectWatcher will start a poll and inject via reinjectionAll when the popup appears.
+  const doc = getTargetDocument(win);
   const el = doc.createElement('style');
   el.id = id;
   el.setAttribute('data-condenser-plugin', pluginKey);
   el.textContent = css;
   if (doc !== document) doc.head.appendChild(el);
 
-  const entry: StyleEntry = { pluginKey, target, css, el };
+  const entry: StyleEntry = { pluginKey, target: win, css, el };
   registry.set(id, entry);
-  ensureReinjectWatcher(target);
+  ensureReinjectWatcher(win);
 
   return { entry, id, cleanup: () => { entry.el.remove(); registry.delete(id); } };
 }
@@ -451,7 +362,7 @@ export interface StyleToggle {
 export function createStyleToggle(
   pluginKey: string,
   source: CSSSource,
-  target: CSSTargetInput = Target.BigPicture,
+  target: TargetDef,
 ): StyleToggle {
   let _enabled = false;
   let _cleanup: (() => void) | null = null;
@@ -467,20 +378,20 @@ export function createStyleToggle(
 export function inject(
   pluginKey: string,
   source: CSSSource,
-  target: CSSTargetInput = Target.BigPicture,
+  target: TargetDef,
 ): () => void {
-  const { targets, scope } = normalizeInput(target);
+  const { windows, scope } = target;
   const effectiveCss = serializeSource(source, scope);
 
   const registry = getRegistry();
   const peers = [...registry.values()]
-    .filter(e => (targets as string[]).includes(e.target) && e.pluginKey !== pluginKey)
+    .filter(e => windows.includes(e.target as Window) && e.pluginKey !== pluginKey)
     .map(e => e.pluginKey);
   if (peers.length > 0) {
-    console.info(`[condenser:css] ${pluginKey} and ${[...new Set(peers)].join(', ')} both targeting "${targets.join('+')}"`);
+    console.info(`[condenser:css] ${pluginKey} and ${[...new Set(peers)].join(', ')} both targeting "${windows.join('+')}"`);
   }
 
-  const cleanups = targets.map(t => injectOne(pluginKey, effectiveCss, t).cleanup);
+  const cleanups = windows.map(w => injectOne(pluginKey, effectiveCss, w).cleanup);
   return () => cleanups.forEach(c => c());
 }
 
@@ -494,21 +405,19 @@ export interface StyleVars {
 export function createStyleVars(
   pluginKey: string,
   vars: Record<string, string>,
-  target: CSSTargetInput = Target.BigPicture,
+  target: TargetDef,
 ): StyleVars {
-  const { targets, scope } = normalizeInput(target);
+  const { windows, scope } = target;
 
   function toCss(v: Record<string, string>): string {
-    // CSS variables are declared on the scope root (or ':root' when global).
-    const host = (scope && scope !== ':root') ? scope : ':root';
     const lines = Object.entries(v)
       .map(([k, val]) => `  ${k.startsWith('--') ? k : `--${k}`}: ${val};`)
       .join('\n');
-    return `${host} {\n${lines}\n}`;
+    return `${scope} {\n${lines}\n}`;
   }
 
   const css = toCss(vars);
-  const handles = targets.map(t => injectOne(pluginKey, css, t));
+  const handles = windows.map(w => injectOne(pluginKey, css, w));
 
   return {
     update(newVars: Record<string, string>): void {

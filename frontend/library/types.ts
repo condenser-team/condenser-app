@@ -1,8 +1,9 @@
 import type * as ReactModule from 'react';
+import type { TargetType } from './css.js';
 
 export interface StyleEntry {
   pluginKey: string;
-  target: string;
+  target: Window;
   css: string;
   el: HTMLStyleElement;
 }
@@ -50,47 +51,27 @@ export type StyleSheet = Record<string, StyleProperties>;
  */
 export type CSSSource = StyleProperties | StyleSheet;
 
-/**
- * CSS injection target. Use the Target constants from condenser.css for discoverability.
- *
- * Real injectable windows (each is a separate CEF popup):
- *   'big-picture'     — Main BPM window (matched by title "Steam Big Picture Mode")
- *   'main-menu'       — Steam button overlay (STEAM button; popup key starts with "MainMenu")
- *   'quick-access'    — Quick Access Menu (controller button; popup key starts with "QuickAccess")
- *   'keyboard'        — On-screen keyboard popup
- *   'overlay-browser' — In-game overlay browser (only while a game runs)
- *   'store'           — Steam Store popup (URL-matched: store.steampowered.com or steamcommunity.com)
- *
- * Compound (expands to multiple windows on inject):
- *   'global' — big-picture + main-menu + quick-access
- */
-export type CSSTarget =
-  | 'big-picture' | 'quick-access' | 'main-menu' | 'keyboard' | 'overlay-browser' | 'store'
-  | 'global';
-
-/**
- * Scoped injection target — injects into a window AND auto-prefixes every CSS rule
- * with a selector so styles only affect the specified parent element.
- *
- * @example
- * const { inject, Target } = condenser.css;
- * const libraryClass = condenser.steam.classes['libraryRoot'];
- *
- * // Only affects elements inside the Library container:
- * const cleanup = inject(key,
- *   { '.Panel': { borderRadius: '10px' } },
- *   { window: Target.BigPicture, scope: '.libraryRoot' },
- * );
- */
-export interface CSSTargetSpec {
-  /** Which CEF window(s) to inject into. Accepts any CSSTarget value or array. */
-  window: CSSTarget | readonly CSSTarget[];
-  /** CSS selector prepended to every rule in the stylesheet. ':root' maps to this selector. */
-  scope: string;
+/** CEF popup window identifiers for Steam's multi-process UI. */
+export enum Window {
+  BigPicture     = 'big-picture',
+  QuickAccess    = 'quick-access',
+  MainMenu       = 'main-menu',
+  Keyboard       = 'keyboard',
+  OverlayBrowser = 'overlay-browser',
+  Store          = 'store',
 }
 
-/** All accepted forms for the target parameter on inject / createStyleToggle / createStyleVars. */
-export type CSSTargetInput = CSSTarget | readonly CSSTarget[] | CSSTargetSpec;
+/**
+ * A resolved injection target — maps a semantic Steam UI feature to the CEF window(s)
+ * and CSS scope selector needed to style it. Use `Target.*` constants rather than
+ * constructing this directly.
+ */
+export interface TargetDef {
+  /** CEF window(s) to inject into. */
+  windows: Window[];
+  /** CSS selector that scopes injected styles to this feature's root element. */
+  scope: string;
+}
 
 export interface PluginComponent {
   key: string;
@@ -144,38 +125,10 @@ export interface CondenserNamespace {
     closeSideMenus(): void;
   };
   css: {
-    /**
-     * Injection targets for the Steam Big Picture Mode UI.
-     *
-     * **Window targets** (strings) — inject globally into a CEF popup window:
-     *   `BigPicture`, `MainMenu`, `QuickAccess`, `Keyboard`, `OverlayBrowser`, `Global`
-     *
-     * **Section targets** (`CSSTargetSpec`) — carry `{ window, scope }` automatically.
-     * The `scope` is a `[class*="..."]` selector that constrains injected CSS to only
-     * that section's root container (Library styles cannot bleed into Settings, etc.):
-     *   `Background`, `Downloads`, `Friends`, `GameDetail`, `Home`, `Library`,
-     *   `LockScreen`, `Media`, `Settings`, `Store`
-     */
-    Target: {
-      // ---- Window targets (raw CEF popup identifiers) ----
-      readonly BigPicture:     'big-picture';
-      readonly MainMenu:       'main-menu';
-      readonly QuickAccess:    'quick-access';
-      readonly Keyboard:       'keyboard';
-      readonly OverlayBrowser: 'overlay-browser';
-      readonly Global:         'global';
-      // ---- Section targets (scoped to BPM section root via [class*="..."] selector) ----
-      readonly Background:  CSSTargetSpec;
-      readonly Downloads:   CSSTargetSpec;
-      readonly Friends:     CSSTargetSpec;
-      readonly GameDetail:  CSSTargetSpec;
-      readonly Home:        CSSTargetSpec;
-      readonly Library:     CSSTargetSpec;
-      readonly LockScreen:  CSSTargetSpec;
-      readonly Media:       CSSTargetSpec;
-      readonly Settings:    CSSTargetSpec;
-      readonly Store:       CSSTargetSpec;
-    };
+    /** CEF popup window identifiers — use with `TargetDef` when constructing custom targets. */
+    Window: typeof Window;
+    /** Injection targets for the Steam UI. See `css.ts` `Target` for the full list. */
+    Target: TargetType;
     /**
      * Inject styles into a target window/section and return a cleanup function.
      *
@@ -186,9 +139,9 @@ export interface CondenserNamespace {
      * When a section target (e.g. `Target.Library`) is used, styles are automatically
      * constrained to that section and cannot affect other parts of the UI.
      */
-    inject(pluginKey: string, source: CSSSource, target?: CSSTargetInput): () => void;
+    inject(pluginKey: string, source: CSSSource, target?: TargetDef): () => void;
     /** Create an enable/disable toggle for a style injection. Same source types as `inject()`. */
-    createStyleToggle(pluginKey: string, source: CSSSource, target?: CSSTargetInput): {
+    createStyleToggle(pluginKey: string, source: CSSSource, target?: TargetDef): {
       enable(): void;
       disable(): void;
       readonly enabled: boolean;
@@ -198,7 +151,7 @@ export interface CondenserNamespace {
      * Variables are injected as a `:root { --key: value; }` block (or scoped to the
      * target section's root when a section target with a real scope is used).
      */
-    createStyleVars(pluginKey: string, vars: Record<string, string>, target?: CSSTargetInput): {
+    createStyleVars(pluginKey: string, vars: Record<string, string>, target?: TargetDef): {
       update(vars: Record<string, string>): void;
       remove(): void;
     };

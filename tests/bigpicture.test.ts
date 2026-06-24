@@ -1,7 +1,7 @@
 /**
  * Verifies that the Big Picture Mode (BPM) router is patched and plugin routes are injected.
  *
- * Checks patch state, component registration, and presence of the condenser-system
+ * Checks patch state, component registration, and presence of the condenser-plugin
  * route in the BPM router's live React fiber tree.
  */
 
@@ -32,20 +32,20 @@ test.describe('Big Picture router', () => {
     expect(patched).toBe(true);
   });
 
-  test('condenser-system component is loaded with route and page', async () => {
+  test('condenser-plugin component is loaded with route and page', async () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
     const result = await page.evaluate(() => {
-      const comp = (window as any).condenser?.components?.['condenser-system']?.component;
+      const comp = (window as any).condenser?.components?.['condenser-plugin']?.component;
       return {
         route: comp?.route,
         hasPage: typeof comp?.page === 'function',
       };
     });
-    expect(result.route).toBe('/condenser/system');
+    expect(result.route).toBe('/condenser-plugin/home');
     expect(result.hasPage).toBe(true);
   });
 
-  test('/condenser/system route is present in BPM router fiber tree', async () => {
+  test('/condenser-plugin/home route is present in BPM router fiber tree', async () => {
     test.skip(!booted, 'Condenser not booted — run: npm run dev');
     const found = await page.evaluate(() => {
       // Walk fiber tree looking for the gamepad router node.
@@ -77,7 +77,7 @@ test.describe('Big Picture router', () => {
       if (!ycFiber) return { found: false, reason: 'yc fiber not found' };
 
       const routeList: any[] = ycFiber.pendingProps.children;
-      const hasRoute = routeList.some((r: any) => r?.props?.path === '/condenser/system');
+      const hasRoute = routeList.some((r: any) => r?.props?.path === '/condenser-plugin/home');
       return { found: hasRoute, reason: hasRoute ? 'ok' : `routes: ${routeList.map((r: any) => r?.props?.path).join(', ')}` };
     });
 
