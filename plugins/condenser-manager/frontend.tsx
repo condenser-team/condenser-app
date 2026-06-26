@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 import React, { useState, useEffect } from 'react';
 import { useSend } from '../../frontend/library/plugin.js';
-import { Focusable } from '../../frontend/library/ui.js';
+import { Focusable, cls } from '../../frontend/library/ui.js';
 import { getCondenser } from '../../frontend/library/condenser.js';
 import type { RegistryPlugin, PluginVersion, MediaObject } from './backend.js';
 
@@ -162,7 +162,7 @@ function PluginDetail({ plugin, installed, dev, send, onBack }: PluginDetailProp
 
   return (
     <Focusable {...flowCol} style={{ display: 'flex', flexDirection: 'column', padding: '12px 16px', gap: 10 }}>
-      <button className="DialogButton _DialogLayout Secondary Focusable" style={{ width: 'auto', fontSize: 12 }} onClick={onBack}>
+      <button className={cls.btnSecondary} style={{ width: 'auto', fontSize: 12 }} onClick={onBack}>
         ← Back
       </button>
       {plugin.image && (
@@ -189,12 +189,12 @@ function PluginDetail({ plugin, installed, dev, send, onBack }: PluginDetailProp
         {dev ? (
           <span style={{ fontSize: 11, color: '#ff9800' }}>Dev mode — running from local source</span>
         ) : installed ? (
-          <button className="DialogButton _DialogLayout Secondary" style={{ fontSize: 12 }} disabled={busy} onClick={() => doAction('uninstallPlugin')}>
+          <button className={cls.btnSecondary} style={{ fontSize: 12 }} disabled={busy} onClick={() => doAction('uninstallPlugin')}>
             Uninstall
           </button>
         ) : (
           <button
-            className="DialogButton _DialogLayout Primary"
+            className={cls.btnPrimary}
             style={{ fontSize: 12 }}
             disabled={busy || !downloadUrl}
             onClick={() => doAction('installPlugin', { contentUrl: downloadUrl })}
@@ -287,7 +287,7 @@ export function Panel() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <button
           type="button"
-          className="DialogButton _DialogLayout Secondary Focusable"
+          className={cls.btnSecondary}
           style={{ fontSize: 12, padding: '5px 15px', flexShrink: 0, width: 'auto' }}
           onClick={() => setShowFilters((v) => !v)}
         >
@@ -312,8 +312,8 @@ export function Panel() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ color: 'var(--gpSystemLighterGrey)', fontSize: 11, minWidth: 44 }}>Status</span>
-            <button className="DialogButton _DialogLayout Secondary Focusable" style={filterOptionBtnStyle(filterStatus === 'all')} onClick={() => setFilterStatus('all')}>All</button>
-            <button className="DialogButton _DialogLayout Secondary Focusable" style={filterOptionBtnStyle(filterStatus === 'installed')} onClick={() => setFilterStatus('installed')}>Installed</button>
+            <button className={cls.btnSecondary} style={filterOptionBtnStyle(filterStatus === 'all')} onClick={() => setFilterStatus('all')}>All</button>
+            <button className={cls.btnSecondary} style={filterOptionBtnStyle(filterStatus === 'installed')} onClick={() => setFilterStatus('installed')}>Installed</button>
           </div>
         </div>
       )}
@@ -381,7 +381,7 @@ export function Persistent(_: { websocketUrl: string }) {
           >
             {modal.title && <h3 style={{ margin: '0 0 12px', fontSize: 18 }}>{modal.title}</h3>}
             {modal.content}
-            <button className="DialogButton _DialogLayout Primary Focusable" style={{ marginTop: 16, width: 'auto' }} onClick={closeModal}>
+            <button className={cls.btnPrimary} style={{ marginTop: 16, width: 'auto' }} onClick={closeModal}>
               Close
             </button>
           </div>

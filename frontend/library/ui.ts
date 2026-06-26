@@ -9,19 +9,28 @@ export type { ToastOptions } from './toast.js';
  * Typed Steam design-system class name constants.
  * Use these in JSX `className` props instead of bare strings.
  *
+ * `btnSecondary` and `btnPrimary` resolve the hashed `Button` module class at
+ * call time so padding stays in sync with Steam's CSS even after updates.
+ *
  * @example
  * <button className={cls.btnSecondary}>Click me</button>
- * <button className={`${cls.btnPrimary} ${cls.focusable}`}>Click me</button>
+ * <button className={cls.btnPrimary}>OK</button>
  */
 export const cls = {
-  btnSecondary: 'DialogButton _DialogLayout Secondary',
-  btnPrimary:   'DialogButton _DialogLayout Primary',
+  get btnSecondary() {
+    const btn = getCondenser().steam.classes.Button;
+    return `${btn ? btn + ' ' : ''}DialogButton _DialogLayout Secondary Focusable`;
+  },
+  get btnPrimary() {
+    const btn = getCondenser().steam.classes.Button;
+    return `${btn ? btn + ' ' : ''}DialogButton _DialogLayout Primary Focusable`;
+  },
   textInput:    'DialogInput DialogInputPlaceholder DialogTextInputBase Focusable',
   inputWrapper: 'DialogInput_Wrapper _DialogLayout Panel',
   focusable:    'Focusable',
-} as const;
+};
 
-export type SteamClassName = (typeof cls)[keyof typeof cls];
+export type SteamClassName = string;
 
 function getRegistry(): Map<string, any> | undefined {
   return getCondenser().core.webpackRegistry;
